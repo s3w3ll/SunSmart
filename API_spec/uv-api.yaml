@@ -1,0 +1,341 @@
+---
+openapi: "3.0.0"
+info:
+  description: "API for UVI (ultraviolet index) forecasts. Endpoints provide a time\
+    \ series of UVI forecasts as well as various images, for any given location in\
+    \ New Zealand."
+  title: "uv-api"
+  version: "1.3.0"
+servers:
+- url: "https://api.niwa.co.nz/uv"
+paths:
+  /data:
+    get:
+      summary: "Gets a JSON formatted array of forecasts with time and UVI"
+      parameters:
+      - in: "query"
+        name: "lat"
+        required: true
+        schema:
+          type: "number"
+        description: "latitude"
+        example: -39
+      - in: "query"
+        name: "long"
+        required: true
+        schema:
+          type: "number"
+        description: "longitude"
+        example: 174
+      responses:
+        "200":
+          description: "A json formatted object of UV forecasts"
+          content:
+            application/json:
+              schema:
+                type: "object"
+                properties:
+                  products:
+                    type: "array"
+                    description: "UV index forecast products, typically one for cloudy\
+                      \ sky and one for clear sky"
+                    items:
+                      type: "object"
+                      properties:
+                        values:
+                          type: "array"
+                          description: "UV index forecast values"
+                          items:
+                            type: "object"
+                            properties:
+                              time:
+                                type: "string"
+                                format: "date-time"
+                                description: "Forecast time with timezone offset (ISO\
+                                  \ 8601 - where the timezone offset is always 'Z'\
+                                  \ for UTC)"
+                              value:
+                                type: "number"
+                                description: "UV index value"
+                        name:
+                          type: "string"
+                          description: "Product identifier, e.g. cloudy_sky_uv_index\
+                            \ or clear_sky_uv_index"
+                  coord:
+                    type: "string"
+                    description: "Coordinate reference system and location in the\
+                      \ format EPSG code, latitude, longitude"
+              example:
+                products:
+                - values:
+                  - time: "2026-03-03T00:00:00Z"
+                    value: 3.22
+                  - time: "2026-03-03T01:00:00Z"
+                    value: 3.387
+                  name: "cloudy_sky_uv_index"
+                - values:
+                  - time: "2026-03-03T00:00:00Z"
+                    value: 6.5
+                  - time: "2026-03-03T01:00:00Z"
+                    value: 6.7
+                  name: "clear_sky_uv_index"
+                coord: "EPSG:4326,-39.0,174.0"
+        default:
+          description: "Unexpected error"
+  /chart.png:
+    get:
+      summary: "PNG chart showing today's forecast for UVI at the given location"
+      description: "Specifying a 'cloudy' sky means using the cloud forecast to adjust\
+        \ the UVI forecast"
+      parameters:
+      - in: "query"
+        name: "lat"
+        required: true
+        schema:
+          type: "number"
+        description: "latitude"
+        example: -39
+      - in: "query"
+        name: "long"
+        required: true
+        schema:
+          type: "number"
+        description: "longitude"
+        example: 174
+      - in: "query"
+        name: "sky"
+        required: false
+        schema:
+          type: "string"
+          enum:
+          - "cloud"
+          - "clear"
+          - "both"
+          default: "both"
+        description: "sky type"
+      responses:
+        "200":
+          description: "PNG showing today's UVI forecast for clear or cloudy skies\
+            \ or both"
+          content:
+            image/png:
+              schema:
+                type: "string"
+                format: "binary"
+        default:
+          description: "Unexpected error"
+  /chart.svg:
+    get:
+      summary: "SVG chart showing today's forecast for UVI at the given location"
+      description: "Specifying a 'cloudy' sky means using the cloud forecast to adjust\
+        \ the UVI forecast"
+      parameters:
+      - in: "query"
+        name: "lat"
+        required: true
+        schema:
+          type: "number"
+        description: "latitude"
+        example: -39
+      - in: "query"
+        name: "long"
+        required: true
+        schema:
+          type: "number"
+        description: "longitude"
+        example: 174
+      - in: "query"
+        name: "sky"
+        required: false
+        schema:
+          type: "string"
+          enum:
+          - "cloud"
+          - "clear"
+          - "both"
+          default: "both"
+        description: "sky type"
+      responses:
+        "200":
+          description: "SVG showing today's UVI forecast for clear or cloudy skies\
+            \ or both"
+          content:
+            image/svg+xml:
+              schema:
+                type: "string"
+        default:
+          description: "Unexpected error"
+  /max.png:
+    get:
+      summary: "PNG image showing today's maximum UVI forecast"
+      description: "Specifying a 'cloudy' sky means using the cloud forecast to adjust\
+        \ the UVI forecast"
+      parameters:
+      - in: "query"
+        name: "lat"
+        required: true
+        schema:
+          type: "number"
+        description: "latitude"
+        example: -39
+      - in: "query"
+        name: "long"
+        required: true
+        schema:
+          type: "number"
+        description: "longitude"
+        example: 174
+      - in: "query"
+        name: "sky"
+        required: false
+        schema:
+          type: "string"
+          enum:
+          - "cloud"
+          - "clear"
+          default: "clear"
+        description: "sky type"
+      responses:
+        "200":
+          description: "PNG showing today's maximum UVI forecast for clear or cloudy\
+            \ skies"
+          content:
+            image/png:
+              schema:
+                type: "string"
+                format: "binary"
+        default:
+          description: "Unexpected error"
+  /max.svg:
+    get:
+      summary: "SVG image showing today's maximum UVI forecast"
+      description: "Specifying a 'cloudy' sky means using the cloud forecast to adjust\
+        \ the UVI forecast"
+      parameters:
+      - in: "query"
+        name: "lat"
+        required: true
+        schema:
+          type: "number"
+        description: "latitude"
+        example: -39
+      - in: "query"
+        name: "long"
+        required: true
+        schema:
+          type: "number"
+        description: "longitude"
+        example: 174
+      - in: "query"
+        name: "sky"
+        required: false
+        schema:
+          type: "string"
+          enum:
+          - "cloud"
+          - "clear"
+          default: "clear"
+        description: "sky type"
+      responses:
+        "200":
+          description: "SVG showing today's maximum UVI forecast for clear or cloudy\
+            \ skies"
+          content:
+            image/svg+xml:
+              schema:
+                type: "string"
+        default:
+          description: "Unexpected error"
+  /current.png:
+    get:
+      summary: "PNG image showing the current UVI forecast"
+      description: "Specifying a 'cloudy' sky means using the cloud forecast to adjust\
+        \ the UVI forecast"
+      parameters:
+      - in: "query"
+        name: "lat"
+        required: true
+        schema:
+          type: "number"
+        description: "latitude"
+        example: -39
+      - in: "query"
+        name: "long"
+        required: true
+        schema:
+          type: "number"
+        description: "longitude"
+        example: 174
+      - in: "query"
+        name: "sky"
+        required: false
+        schema:
+          type: "string"
+          enum:
+          - "cloud"
+          - "clear"
+          default: "clear"
+        description: "sky type"
+      responses:
+        "200":
+          description: "PNG showing the current UVI forecast for clear or cloudy skies"
+          content:
+            image/png:
+              schema:
+                type: "string"
+                format: "binary"
+        default:
+          description: "Unexpected error"
+  /current.svg:
+    get:
+      summary: "SVG image showing the current UVI forecast"
+      description: "Specifying a 'cloudy' sky means using the cloud forecast to adjust\
+        \ the UVI forecast"
+      parameters:
+      - in: "query"
+        name: "lat"
+        required: true
+        schema:
+          type: "number"
+        description: "latitude"
+        example: -39
+      - in: "query"
+        name: "long"
+        required: true
+        schema:
+          type: "number"
+        description: "longitude"
+        example: 174
+      - in: "query"
+        name: "sky"
+        required: false
+        schema:
+          type: "string"
+          enum:
+          - "cloud"
+          - "clear"
+          default: "clear"
+        description: "sky type"
+      responses:
+        "200":
+          description: "SVG showing the current UVI forecast for clear or cloudy skies"
+          content:
+            image/svg+xml:
+              schema:
+                type: "string"
+        default:
+          description: "Unexpected error"
+components:
+  securitySchemes:
+    APIKeyHeader:
+      type: "apiKey"
+      name: "x-apikey"
+      in: "header"
+    APIKeyQueryParam:
+      type: "apiKey"
+      name: "apikey"
+      in: "query"
+security:
+- APIKeyHeader: []
+- APIKeyQueryParam: []
+tags: []
