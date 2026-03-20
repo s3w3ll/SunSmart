@@ -10,6 +10,40 @@ const SUNSCREEN_APPLY_BEFORE_MIN = 20;
 const SUNSCREEN_REAPPLY_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 /* ============================================================
+   SUPABASE CONFIG
+   ============================================================ */
+const SUPABASE_URL      = 'https://ixeodnoimeewaafzwssx.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_7KhAjFqiaftJk0n6Y6i-9A_eY5BXNRg';
+
+// Graceful degradation: if the CDN fails to load, the app falls back to guest mode
+let supabaseClient = null;
+try {
+  supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) ?? null;
+} catch { /* Supabase CDN blocked or unavailable — auth features disabled */ }
+
+/* ============================================================
+   APP STATE
+   ============================================================ */
+const DEFAULT_SCHOOL_PREFS = {
+  school_name:    '',
+  location_label: null,
+  lat:            null,
+  long:           null,
+  policy_type:    null,
+  open_time:      '08:30',
+  close_time:     '15:00',
+  open_days:      [1, 2, 3, 4, 5],
+};
+
+const appState = {
+  schoolPrefs: { ...DEFAULT_SCHOOL_PREFS },
+  user:        null,   // Supabase User object when signed in
+};
+
+let _listenersInitialized = false;  // prevents duplicate listeners on bfcache restore
+let _bootCompleted        = false;  // prevents double-boot from onAuthStateChange + getSession
+
+/* ============================================================
    POLICY DATA
    ============================================================ */
 const POLICY_DATA = {
@@ -351,7 +385,16 @@ function initLocationSelector() {
 async function selectLocation(lat, long, label) {
   const location = { lat, long, label };
   saveState('sunsmart_location', location);
+  // Sync into preferences and persist
+  appState.schoolPrefs.lat            = lat;
+  appState.schoolPrefs.long           = long;
+  appState.schoolPrefs.location_label = label;
+  savePreferences(appState.schoolPrefs); // non-blocking background save
+  // Keep settings panel label up to date if it's open
+  const settingsLocEl = document.getElementById('settings-location-label');
+  if (settingsLocEl) settingsLocEl.textContent = label;
   hideLocationSelector();
+  document.getElementById('app').classList.remove('hidden');
   document.getElementById('location-label').textContent = label;
   await loadAndRenderUV(location);
 }
@@ -533,12 +576,18 @@ function renderDataTable(hourlyData) {
    RENDERING — Policy Action Panel
    ============================================================ */
 function initPolicyPills() {
-  document.querySelectorAll('.pill').forEach(btn => {
+  document.querySelectorAll('.pill:not(.settings-pill)').forEach(btn => {
     btn.addEventListener('click', () => {
       const policyType = btn.dataset.policy;
       saveState('sunsmart_policy', policyType);
-      document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+      appState.schoolPrefs.policy_type = policyType;
+      savePreferences(appState.schoolPrefs);
+      document.querySelectorAll('.pill:not(.settings-pill)').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
+      // Mirror to settings pills
+      document.querySelectorAll('.settings-pill').forEach(p => {
+        p.classList.toggle('active', p.dataset.policy === policyType);
+      });
       const cache = loadCachedUV();
       if (cache && cache.data) renderPolicyPanel(policyType, cache.data);
     });
@@ -575,6 +624,13 @@ function renderChecklist(policyType, hourlyData) {
   const sunscreenPromptEl = document.getElementById('sunscreen-prompt');
   const babyCalloutEl     = document.getElementById('baby-callout');
   const listEl            = document.getElementById('checklist');
+
+  // Outside school hours note
+  const outsideHoursEl = document.getElementById('outside-hours-note');
+  if (outsideHoursEl) {
+    const withinHours = isWithinSchoolHours(getNZHourString(), appState.schoolPrefs);
+    outsideHoursEl.classList.toggle('hidden', withinHours || !actions.active);
+  }
 
   // Status banner
   if (actions.active) {
@@ -635,6 +691,9 @@ function renderTimeline(policyType, hourlyData) {
 
     const block = document.createElement('div');
     block.className = 'timeline-block';
+    if (!isWithinSchoolHours(t, appState.schoolPrefs)) {
+      block.classList.add('timeline-block--outside-hours');
+    }
     block.setAttribute('data-level', isActive ? level : 'none');
     block.setAttribute('role', 'listitem');
     block.setAttribute('aria-label', `${formatHour(t)}: UVI ${uvi > 0 ? uvi.toFixed(1) : '–'}`);
@@ -701,14 +760,380 @@ function hideStaleWarning() {
 }
 
 /* ============================================================
+   SCHOOL HOURS UTILITY
+   ============================================================ */
+
+/**
+ * Returns true if the given ISO hour string ("2026-03-20T14:00") falls
+ * within the school's configured operating hours and open days.
+ * The ISO string comes from Open-Meteo which returns NZ local time,
+ * so the date part is already the correct NZ calendar date.
+ */
+function isWithinSchoolHours(isoHourString, prefs) {
+  const p = prefs || DEFAULT_SCHOOL_PREFS;
+
+  const hour    = parseInt(isoHourString.split('T')[1].split(':')[0], 10);
+  const [y,m,d] = isoHourString.split('T')[0].split('-').map(Number);
+
+  // Use UTC noon to get the correct day-of-week for the NZ local date
+  // without any DST boundary issues
+  const dayOfWeek = new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay(); // 0=Sun … 6=Sat
+
+  const openDays = Array.isArray(p.open_days) ? p.open_days : [1, 2, 3, 4, 5];
+  if (!openDays.includes(dayOfWeek)) return false;
+
+  const [openH,  openM]  = (p.open_time  || '08:30').split(':').map(Number);
+  const [closeH, closeM] = (p.close_time || '15:00').split(':').map(Number);
+
+  const blockStart = hour * 60;
+  return blockStart >= (openH * 60 + openM) && blockStart < (closeH * 60 + closeM);
+}
+
+/* ============================================================
+   AUTH HELPERS
+   ============================================================ */
+
+function isGuest()     { return localStorage.getItem('sunsmart_guest') === 'true'; }
+function setGuestMode(){ localStorage.setItem('sunsmart_guest', 'true'); }
+function clearGuestMode(){ try { localStorage.removeItem('sunsmart_guest'); } catch { /* ignore */ } }
+
+function showAuthModal() {
+  document.getElementById('auth-modal').classList.remove('hidden');
+  document.getElementById('location-selector').classList.add('hidden');
+  document.getElementById('app').classList.add('hidden');
+}
+function hideAuthModal() {
+  document.getElementById('auth-modal').classList.add('hidden');
+}
+
+function showSyncDot(syncing) {
+  const dot = document.getElementById('sync-dot');
+  if (!dot) return;
+  if (syncing) {
+    dot.className = 'sync-dot';
+    dot.classList.remove('hidden');
+  } else {
+    dot.className = 'sync-dot sync-dot--saved';
+    setTimeout(() => dot.classList.add('hidden'), 1500);
+  }
+}
+
+async function signInWithGoogle() {
+  if (!supabaseClient) return;
+  try {
+    await supabaseClient.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    });
+    // Browser redirects to Google — no further action needed
+  } catch (e) {
+    console.error('Google sign-in error:', e);
+  }
+}
+
+async function signOut() {
+  if (!supabaseClient) return;
+  await supabaseClient.auth.signOut();
+  clearGuestMode();
+  clearState('sunsmart_location');
+  clearState('sunsmart_policy');
+  clearState('sunsmart_uv_cache');
+  clearState('sunsmart_prefs');
+  appState.schoolPrefs = { ...DEFAULT_SCHOOL_PREFS };
+  appState.user        = null;
+  _bootCompleted       = false;
+  hideSettingsPanel();
+  showAuthModal();
+}
+
+/* ============================================================
+   PREFERENCES — load / save / apply / migrate
+   ============================================================ */
+
+async function loadPreferences(userId) {
+  if (!supabaseClient || !userId) return null;
+  try {
+    const { data, error } = await supabaseClient
+      .from('school_preferences')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = row not found
+    return data || null;
+  } catch (e) {
+    console.warn('Could not load preferences:', e);
+    return null;
+  }
+}
+
+let _savePrefsTimer = null;
+
+async function savePreferences(prefs) {
+  // Guests: persist to localStorage only
+  if (!supabaseClient || !appState.user) {
+    saveState('sunsmart_prefs', prefs);
+    return;
+  }
+  // Authenticated: debounced upsert to Supabase
+  clearTimeout(_savePrefsTimer);
+  showSyncDot(true);
+  _savePrefsTimer = setTimeout(async () => {
+    try {
+      const { error } = await supabaseClient
+        .from('school_preferences')
+        .upsert({ ...prefs, user_id: appState.user.id }, { onConflict: 'user_id' });
+      if (error) throw error;
+      showSyncDot(false);
+    } catch (e) {
+      console.warn('Could not save preferences:', e);
+      showSyncDot(false);
+    }
+  }, 500);
+}
+
+async function migrateGuestToAccount(userId) {
+  // DB row already exists (logged in on another device) — DB wins
+  const existing = await loadPreferences(userId);
+  if (existing) {
+    applyPreferences(existing);
+    return;
+  }
+  // First time login — seed DB from any localStorage guest data
+  const localPrefs   = JSON.parse(localStorage.getItem('sunsmart_prefs')    || 'null');
+  const localLoc     = JSON.parse(localStorage.getItem('sunsmart_location') || 'null');
+  const localPolicy  = localStorage.getItem('sunsmart_policy');
+
+  const migrated = { ...DEFAULT_SCHOOL_PREFS, ...(localPrefs || {}), user_id: userId };
+  if (localLoc)    { migrated.lat = localLoc.lat; migrated.long = localLoc.long; migrated.location_label = localLoc.label; }
+  if (localPolicy) { migrated.policy_type = localPolicy; }
+
+  applyPreferences(migrated);
+  try {
+    if (supabaseClient) {
+      await supabaseClient
+        .from('school_preferences')
+        .upsert(migrated, { onConflict: 'user_id' });
+    }
+  } catch (e) {
+    console.warn('Migration upsert failed:', e);
+  }
+}
+
+function applyPreferences(prefs) {
+  if (!prefs) return;
+  appState.schoolPrefs = {
+    ...DEFAULT_SCHOOL_PREFS,
+    ...prefs,
+    open_days: Array.isArray(prefs.open_days) ? prefs.open_days : [1, 2, 3, 4, 5],
+  };
+  // Keep localStorage in sync so UV fetching always has a location
+  if (prefs.lat && prefs.long && prefs.location_label) {
+    saveState('sunsmart_location', { lat: prefs.lat, long: prefs.long, label: prefs.location_label });
+  }
+  if (prefs.policy_type) {
+    saveState('sunsmart_policy', prefs.policy_type);
+    document.querySelectorAll('.pill').forEach(p => {
+      p.classList.toggle('active', p.dataset.policy === prefs.policy_type);
+    });
+  }
+}
+
+function updateUserUI(user) {
+  appState.user = user;
+  const avatarEl         = document.getElementById('profile-avatar');
+  const iconEl           = document.getElementById('profile-icon');
+  const settingsAvatarEl = document.getElementById('settings-avatar');
+  const nameEl           = document.getElementById('settings-user-name');
+  const emailEl          = document.getElementById('settings-user-email');
+  const userInfoRow      = document.getElementById('user-info-row');
+
+  if (user) {
+    const meta = user.user_metadata || {};
+    if (meta.avatar_url) {
+      avatarEl.src = meta.avatar_url;
+      avatarEl.classList.remove('hidden');
+      iconEl.classList.add('hidden');
+      if (settingsAvatarEl) { settingsAvatarEl.src = meta.avatar_url; settingsAvatarEl.classList.remove('hidden'); }
+    }
+    if (nameEl)  nameEl.textContent  = meta.full_name || 'Signed in';
+    if (emailEl) emailEl.textContent = user.email || '';
+    if (userInfoRow) userInfoRow.classList.remove('hidden');
+    document.getElementById('guest-banner')?.classList.add('hidden');
+  } else {
+    avatarEl.src = '';
+    avatarEl.classList.add('hidden');
+    iconEl.classList.remove('hidden');
+    if (settingsAvatarEl) settingsAvatarEl.classList.add('hidden');
+    if (userInfoRow) userInfoRow.classList.add('hidden');
+  }
+}
+
+/* ============================================================
+   AUTH INITIALISATION
+   ============================================================ */
+
+async function initAuth() {
+  // Wire auth modal buttons
+  document.getElementById('google-signin-btn').addEventListener('click', signInWithGoogle);
+  document.getElementById('guest-btn').addEventListener('click', () => {
+    setGuestMode();
+    hideAuthModal();
+    document.getElementById('guest-banner')?.classList.remove('hidden');
+    bootApp();
+  });
+  document.getElementById('guest-banner-signin-btn')?.addEventListener('click', signInWithGoogle);
+
+  if (!supabaseClient) {
+    // Supabase CDN unavailable — treat as guest
+    if (isGuest()) { hideAuthModal(); bootApp(); } else { showAuthModal(); }
+    return;
+  }
+
+  // Listen for future state changes (sign in after redirect, sign out)
+  supabaseClient.auth.onAuthStateChange(async (event, session) => {
+    if (event === 'SIGNED_IN' && session?.user && !_bootCompleted) {
+      hideAuthModal();
+      clearGuestMode();
+      updateUserUI(session.user);
+      await migrateGuestToAccount(session.user.id);
+      await bootApp();
+    } else if (event === 'SIGNED_OUT') {
+      _bootCompleted = false;
+      showAuthModal();
+    }
+  });
+
+  // Check existing session (covers returning users and post-OAuth-redirect)
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if (session?.user) {
+    if (!_bootCompleted) {
+      hideAuthModal();
+      clearGuestMode();
+      updateUserUI(session.user);
+      await migrateGuestToAccount(session.user.id);
+      await bootApp();
+    }
+  } else if (isGuest()) {
+    hideAuthModal();
+    const localPrefs = JSON.parse(localStorage.getItem('sunsmart_prefs') || 'null');
+    if (localPrefs) applyPreferences(localPrefs);
+    document.getElementById('guest-banner')?.classList.remove('hidden');
+    await bootApp();
+  } else {
+    showAuthModal();
+  }
+}
+
+/* ============================================================
+   SETTINGS PANEL
+   ============================================================ */
+
+function showSettingsPanel() {
+  const prefs = appState.schoolPrefs;
+  const state = loadState();
+
+  document.getElementById('school-name-input').value  = prefs.school_name || '';
+  document.getElementById('settings-location-label').textContent =
+    prefs.location_label || state.location?.label || 'Not set';
+  document.getElementById('open-time').value  = prefs.open_time  || '08:30';
+  document.getElementById('close-time').value = prefs.close_time || '15:00';
+
+  const openDays = prefs.open_days || [1, 2, 3, 4, 5];
+  document.querySelectorAll('.day-checkbox input').forEach(cb => {
+    cb.checked = openDays.includes(parseInt(cb.dataset.day, 10));
+  });
+
+  const currentPolicy = prefs.policy_type || state.policy;
+  document.querySelectorAll('.settings-pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.policy === currentPolicy);
+  });
+
+  document.getElementById('settings-save-status').classList.add('hidden');
+  document.getElementById('settings-panel').classList.remove('hidden');
+}
+
+function hideSettingsPanel() {
+  document.getElementById('settings-panel').classList.add('hidden');
+}
+
+function initSettingsPanel() {
+  document.getElementById('settings-close-btn').addEventListener('click', hideSettingsPanel);
+  document.getElementById('settings-backdrop').addEventListener('click', hideSettingsPanel);
+  document.getElementById('profile-btn').addEventListener('click', showSettingsPanel);
+  document.getElementById('signout-btn').addEventListener('click', signOut);
+
+  // Change location from within settings
+  document.getElementById('settings-change-location-btn').addEventListener('click', () => {
+    hideSettingsPanel();
+    clearState('sunsmart_location');
+    clearState('sunsmart_uv_cache');
+    showLocationSelector();
+  });
+
+  // Settings policy pills — mirror to main pills
+  document.querySelectorAll('.settings-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.settings-pill').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.pill:not(.settings-pill)').forEach(p => {
+        p.classList.toggle('active', p.dataset.policy === btn.dataset.policy);
+      });
+    });
+  });
+
+  // Save
+  document.getElementById('settings-save-btn').addEventListener('click', async () => {
+    const state      = loadState();
+    const policyType = document.querySelector('.settings-pill.active')?.dataset.policy
+                    || appState.schoolPrefs.policy_type;
+    const activeDays = Array.from(document.querySelectorAll('.day-checkbox input'))
+      .filter(cb => cb.checked).map(cb => parseInt(cb.dataset.day, 10));
+
+    const updated = {
+      ...appState.schoolPrefs,
+      school_name:    document.getElementById('school-name-input').value.trim(),
+      open_time:      document.getElementById('open-time').value  || '08:30',
+      close_time:     document.getElementById('close-time').value || '15:00',
+      open_days:      activeDays,
+      policy_type:    policyType || null,
+      location_label: state.location?.label || appState.schoolPrefs.location_label,
+      lat:            state.location?.lat   || appState.schoolPrefs.lat,
+      long:           state.location?.long  || appState.schoolPrefs.long,
+    };
+
+    appState.schoolPrefs = updated;
+    if (policyType) saveState('sunsmart_policy', policyType);
+    await savePreferences(updated);
+
+    // Update main pills to reflect settings change
+    if (policyType) {
+      document.querySelectorAll('.pill:not(.settings-pill)').forEach(p => {
+        p.classList.toggle('active', p.dataset.policy === policyType);
+      });
+    }
+
+    // Re-render timeline and checklist with new school hours
+    const cache = loadCachedUV();
+    if (cache?.data && state.location) renderAll(cache.data, state.location);
+
+    const statusEl = document.getElementById('settings-save-status');
+    statusEl.textContent = '✓ Settings saved';
+    statusEl.className = 'settings-save-status settings-save-status--success';
+    statusEl.classList.remove('hidden');
+    setTimeout(() => { statusEl.classList.add('hidden'); hideSettingsPanel(); }, 1500);
+  });
+}
+
+/* ============================================================
    BOOT
    ============================================================ */
 function renderAll(hourlyData, location) {
-  const state = loadState();
+  const state      = loadState();
+  const policyType = appState.schoolPrefs.policy_type || state.policy;
   renderUVCard(hourlyData, location);
   renderChart(hourlyData);
   renderDataTable(hourlyData);
-  renderPolicyPanel(state.policy, hourlyData);
+  renderPolicyPanel(policyType, hourlyData);
   hideAPIError();
 }
 
@@ -761,34 +1186,28 @@ async function loadAndRenderUV(location) {
   }
 }
 
-async function init() {
-  const state = loadState();
+async function bootApp() {
+  if (_bootCompleted) return;
+  _bootCompleted = true;
+
+  const state      = loadState();
+  const policyType = appState.schoolPrefs.policy_type || state.policy;
 
   // Restore policy pill active state
-  if (state.policy) {
-    const pill = document.querySelector(`.pill[data-policy="${state.policy}"]`);
-    if (pill) pill.classList.add('active');
+  if (policyType) {
+    document.querySelectorAll('.pill').forEach(p => {
+      p.classList.toggle('active', p.dataset.policy === policyType);
+    });
   }
-
-  initLocationSelector();
-  initPolicyPills();
-
-  // Wire up change-location button
-  document.getElementById('change-location-btn').addEventListener('click', () => {
-    if (currentFetchController) currentFetchController.abort();
-    clearState('sunsmart_location');
-    clearState('sunsmart_uv_cache');
-    showLocationSelector();
-  });
 
   if (!state.location) {
     showLocationSelector();
     return;
   }
 
-  // Location saved — show app and load UV data
   try {
-    hideLocationSelector();
+    document.getElementById('location-selector').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
     document.getElementById('location-label').textContent = state.location.label;
     await loadAndRenderUV(state.location);
   } catch (e) {
@@ -797,14 +1216,43 @@ async function init() {
   }
 }
 
+async function init() {
+  // Register event listeners once only — prevents duplicate handlers on bfcache restore
+  if (!_listenersInitialized) {
+    _listenersInitialized = true;
+
+    initLocationSelector();
+    initPolicyPills();
+    initSettingsPanel();
+
+    document.getElementById('change-location-btn').addEventListener('click', () => {
+      if (currentFetchController) currentFetchController.abort();
+      clearState('sunsmart_location');
+      clearState('sunsmart_uv_cache');
+      appState.schoolPrefs.lat            = null;
+      appState.schoolPrefs.long           = null;
+      appState.schoolPrefs.location_label = null;
+      showLocationSelector();
+    });
+  }
+
+  await initAuth();
+}
+
 document.addEventListener('DOMContentLoaded', init);
 
-// Handle bfcache restore (mobile browsers cache the full page in memory;
+// Handle bfcache restore (mobile Safari caches the full page in memory —
 // the canvas is cleared on restore but chartInstance still thinks it's valid)
 window.addEventListener('pageshow', (e) => {
   if (e.persisted) {
-    chartInstance = null; // force chart to fully re-create on stale canvas
-    init();
+    chartInstance = null; // force chart re-creation on stale canvas
+    const state = loadState();
+    if (state.location) {
+      const cache = loadCachedUV();
+      if (cache?.data) {
+        try { renderAll(cache.data, state.location); } catch { /* ignore stale canvas */ }
+      }
+    }
   }
 });
 

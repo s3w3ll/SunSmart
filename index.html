@@ -8,6 +8,27 @@
 </head>
 <body>
 
+  <!-- Auth Modal (full-screen, shown on first visit / signed out) -->
+  <div id="auth-modal" class="auth-modal hidden" role="dialog" aria-modal="true" aria-label="Sign in to SunSmart">
+    <div class="auth-modal__inner">
+      <div class="auth-modal__logo">☀️</div>
+      <h1 class="auth-modal__title">SunSmart UV</h1>
+      <p class="auth-modal__subtitle">UV guidance for NZ schools</p>
+      <button id="google-signin-btn" class="btn btn--google" type="button">
+        <svg class="google-icon" width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" fill="#4285F4"/>
+          <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+          <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+          <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+        </svg>
+        Continue with Google
+      </button>
+      <div class="divider"><span>or</span></div>
+      <button id="guest-btn" class="btn btn--secondary" type="button">Continue as Guest</button>
+      <p class="auth-modal__guest-note">Settings saved on this device only</p>
+    </div>
+  </div>
+
   <!-- Location selector (shown full-screen when no location saved) -->
   <div id="location-selector" class="location-selector hidden" role="main" aria-label="Location setup">
     <div class="location-selector__inner">
@@ -36,11 +57,26 @@
   <!-- Main app (shown after location is set) -->
   <main id="app" class="app hidden" aria-label="SunSmart UV dashboard">
 
+    <!-- Guest banner -->
+    <div id="guest-banner" class="guest-banner hidden" role="note">
+      <span>Sign in to sync settings across devices</span>
+      <button id="guest-banner-signin-btn" class="btn-link-dark" type="button">Sign in →</button>
+    </div>
+
     <!-- UV Data Card -->
     <section id="uv-card" class="uv-card" aria-label="UV index summary">
       <div class="uv-card__header">
-        <span id="location-label" class="location-label"></span>
-        <button id="change-location-btn" class="btn-link" type="button" aria-label="Change location">change</button>
+        <div class="uv-card__header-left">
+          <span id="location-label" class="location-label"></span>
+          <button id="change-location-btn" class="btn-link" type="button" aria-label="Change location">change</button>
+        </div>
+        <div class="uv-card__header-right">
+          <span id="sync-dot" class="sync-dot hidden" title="Syncing…"></span>
+          <button id="profile-btn" class="profile-btn" type="button" aria-label="Account and settings">
+            <img id="profile-avatar" class="profile-avatar hidden" alt="" />
+            <span id="profile-icon" class="profile-icon" aria-hidden="true">👤</span>
+          </button>
+        </div>
       </div>
       <div class="uv-card__body">
         <div class="uv-card__index-wrap">
@@ -90,6 +126,9 @@
       <!-- Right Now checklist -->
       <div id="checklist-section" class="checklist-section hidden">
         <div id="checklist-status" class="checklist-status" role="status" aria-live="polite"></div>
+        <div id="outside-hours-note" class="outside-hours-note hidden" role="note">
+          ℹ️ Outside school hours — SunSmart applies during the school day
+        </div>
         <div id="sunscreen-prompt" class="sunscreen-prompt hidden" role="alert"></div>
         <div id="baby-callout" class="baby-callout hidden" role="note"></div>
         <ul id="checklist" class="checklist" aria-label="SunSmart actions"></ul>
@@ -99,7 +138,6 @@
       <details id="timeline-details" class="timeline-details hidden">
         <summary class="timeline-toggle">Plan your day ▾</summary>
         <div id="timeline" class="timeline" role="list" aria-label="Hourly SunSmart timeline"></div>
-        <!-- Hour detail popup -->
         <div id="hour-detail" class="hour-detail hidden" aria-live="polite"></div>
       </details>
 
@@ -119,7 +157,86 @@
 
   </main>
 
-  <!-- CDN scripts — load Chart.js before app.js -->
+  <!-- Settings Panel (slide-up sheet) -->
+  <div id="settings-panel" class="settings-panel hidden" role="dialog" aria-modal="true" aria-label="School settings">
+    <div class="settings-panel__backdrop" id="settings-backdrop"></div>
+    <div class="settings-panel__sheet">
+      <div class="settings-panel__header">
+        <h2 class="settings-panel__title">School Settings</h2>
+        <button id="settings-close-btn" class="settings-close-btn" type="button" aria-label="Close settings">✕</button>
+      </div>
+      <div class="settings-panel__body">
+
+        <!-- User info row (authenticated users only) -->
+        <div id="user-info-row" class="user-info-row hidden">
+          <div class="user-info-row__left">
+            <img id="settings-avatar" class="settings-avatar hidden" alt="" />
+            <div>
+              <div id="settings-user-name" class="settings-user-name"></div>
+              <div id="settings-user-email" class="settings-user-email"></div>
+            </div>
+          </div>
+          <button id="signout-btn" class="btn btn--danger-outline btn--small" type="button">Sign out</button>
+        </div>
+
+        <!-- School name -->
+        <div class="settings-field">
+          <label class="settings-label" for="school-name-input">School name</label>
+          <input id="school-name-input" class="settings-input" type="text" placeholder="e.g. Ponsonby Primary School" autocomplete="organization" />
+        </div>
+
+        <!-- Location -->
+        <div class="settings-field">
+          <label class="settings-label">Location</label>
+          <div class="settings-location-row">
+            <span id="settings-location-label" class="settings-location-text">Not set</span>
+            <button id="settings-change-location-btn" class="btn-link-dark" type="button">Change →</button>
+          </div>
+        </div>
+
+        <!-- Policy type -->
+        <div class="settings-field">
+          <label class="settings-label">Policy type</label>
+          <div class="policy-pills__buttons">
+            <button class="pill settings-pill" data-policy="ec" type="button">Early Childhood</button>
+            <button class="pill settings-pill" data-policy="primary" type="button">Primary / Intermediate</button>
+            <button class="pill settings-pill" data-policy="secondary" type="button">Secondary</button>
+          </div>
+        </div>
+
+        <!-- School hours -->
+        <div class="settings-field">
+          <label class="settings-label">School hours</label>
+          <div class="hours-row">
+            <input id="open-time" class="settings-time" type="time" value="08:30" />
+            <span class="hours-separator">to</span>
+            <input id="close-time" class="settings-time" type="time" value="15:00" />
+          </div>
+        </div>
+
+        <!-- Open days -->
+        <div class="settings-field">
+          <label class="settings-label">Open days</label>
+          <div class="days-row">
+            <label class="day-checkbox"><input type="checkbox" data-day="1" checked /><span>Mon</span></label>
+            <label class="day-checkbox"><input type="checkbox" data-day="2" checked /><span>Tue</span></label>
+            <label class="day-checkbox"><input type="checkbox" data-day="3" checked /><span>Wed</span></label>
+            <label class="day-checkbox"><input type="checkbox" data-day="4" checked /><span>Thu</span></label>
+            <label class="day-checkbox"><input type="checkbox" data-day="5" checked /><span>Fri</span></label>
+            <label class="day-checkbox"><input type="checkbox" data-day="6" /><span>Sat</span></label>
+            <label class="day-checkbox"><input type="checkbox" data-day="0" /><span>Sun</span></label>
+          </div>
+        </div>
+
+        <button id="settings-save-btn" class="btn btn--primary" type="button">Save settings</button>
+        <p id="settings-save-status" class="settings-save-status hidden"></p>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- CDN scripts — load in order: Supabase → Chart.js → app -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
   <script src="app.js"></script>

@@ -369,3 +369,264 @@ ul { list-style: none; }
   .policy-pills__buttons { flex-direction: column; }
   .pill { text-align: center; }
 }
+
+/* ============================================================
+   AUTH MODAL
+   ============================================================ */
+.auth-modal {
+  position: fixed;
+  inset: 0;
+  background: var(--colour-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing);
+  z-index: 1000;
+}
+.auth-modal__inner {
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.auth-modal__logo       { font-size: 3rem; }
+.auth-modal__title      { font-size: 1.8rem; font-weight: 700; }
+.auth-modal__subtitle   { color: var(--colour-text-secondary); font-size: 0.95rem; margin-bottom: 8px; }
+.auth-modal__guest-note { font-size: 0.8rem; color: var(--colour-text-secondary); text-align: center; margin-top: -4px; }
+
+.btn--google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  background: white;
+  border: 2px solid #dadce0;
+  border-radius: var(--radius);
+  padding: 12px 20px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #3c4043;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  transition: box-shadow 0.15s, background 0.15s;
+}
+.btn--google:hover  { background: #f8f9fa; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+.btn--google:active { background: #f1f3f4; }
+.google-icon        { flex-shrink: 0; }
+
+/* ============================================================
+   UV CARD HEADER — restructured for profile button
+   ============================================================ */
+.uv-card__header      { flex-wrap: nowrap; }
+.uv-card__header-left { display: flex; align-items: center; gap: 8px; overflow: hidden; flex: 1; }
+.uv-card__header-right{ display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.location-label       { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+
+.profile-btn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  border: 2px solid rgba(255,255,255,0.4);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.profile-btn:hover { background: rgba(255,255,255,0.35); }
+.profile-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.profile-icon { line-height: 1; }
+
+.sync-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.5);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.sync-dot--saved { background: rgba(255,255,255,0.85); animation: none; }
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 1; }
+}
+
+/* ============================================================
+   GUEST BANNER
+   ============================================================ */
+.guest-banner {
+  background: #fff3cd;
+  border-bottom: 1px solid #ffc107;
+  padding: 10px var(--spacing);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #856404;
+  gap: 8px;
+}
+.btn-link-dark {
+  background: none; border: none;
+  color: #856404;
+  font-size: 0.85rem; font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer; white-space: nowrap; padding: 0;
+}
+
+/* ============================================================
+   SETTINGS PANEL (slide-up sheet)
+   ============================================================ */
+.settings-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+}
+.settings-panel__backdrop {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.45);
+}
+.settings-panel__sheet {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  max-height: 90vh;
+  background: var(--colour-surface);
+  border-radius: var(--radius) var(--radius) 0 0;
+  overflow-y: auto;
+  animation: slideUp 0.25s ease-out;
+  max-width: 600px;
+  margin: 0 auto;
+}
+@keyframes slideUp {
+  from { transform: translateY(40px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.settings-panel__header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px var(--spacing);
+  border-bottom: 1px solid var(--colour-border);
+  position: sticky; top: 0;
+  background: var(--colour-surface);
+  z-index: 1;
+}
+.settings-panel__title { font-size: 1.1rem; font-weight: 700; }
+.settings-close-btn {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--colour-bg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+  color: var(--colour-text-secondary);
+  cursor: pointer;
+}
+.settings-close-btn:hover { background: var(--colour-border); }
+.settings-panel__body {
+  padding: var(--spacing);
+  display: flex; flex-direction: column;
+  gap: 20px;
+  padding-bottom: 40px;
+}
+
+/* User info row */
+.user-info-row {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--colour-bg);
+  border-radius: var(--radius);
+  gap: 12px;
+}
+.user-info-row__left   { display: flex; align-items: center; gap: 12px; overflow: hidden; }
+.settings-avatar       { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.settings-user-name    { font-weight: 600; font-size: 0.9rem; }
+.settings-user-email   { font-size: 0.8rem; color: var(--colour-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Form fields */
+.settings-field  { display: flex; flex-direction: column; gap: 8px; }
+.settings-label  { font-size: 0.8rem; font-weight: 600; color: var(--colour-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+.settings-input  {
+  padding: 12px 14px; font-size: 0.95rem;
+  border: 2px solid var(--colour-border);
+  border-radius: var(--radius);
+  outline: none; transition: border-color 0.2s;
+}
+.settings-input:focus { border-color: #333; }
+
+/* Location display */
+.settings-location-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.settings-location-text { font-size: 0.95rem; color: var(--colour-text); flex: 1; }
+
+/* Settings pills */
+.settings-pill { font-size: 0.8rem; }
+
+/* Hours */
+.hours-row       { display: flex; align-items: center; gap: 10px; }
+.settings-time   {
+  padding: 10px 12px; font-size: 0.95rem;
+  border: 2px solid var(--colour-border);
+  border-radius: var(--radius);
+  outline: none; flex: 1; max-width: 130px;
+}
+.settings-time:focus  { border-color: #333; }
+.hours-separator { color: var(--colour-text-secondary); font-size: 0.9rem; }
+
+/* Days */
+.days-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.day-checkbox { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+.day-checkbox input { display: none; }
+.day-checkbox span {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 2px solid var(--colour-border);
+  font-size: 0.78rem; font-weight: 500;
+  background: var(--colour-surface);
+  transition: all 0.15s;
+  user-select: none;
+  min-width: 36px; text-align: center;
+}
+.day-checkbox input:checked + span {
+  background: var(--colour-text);
+  color: white;
+  border-color: var(--colour-text);
+}
+
+/* Save button */
+.btn--primary {
+  background: var(--colour-text); color: white;
+  width: 100%; padding: 14px;
+  border-radius: var(--radius);
+  font-size: 1rem; font-weight: 600;
+  border: none; cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn--primary:active { opacity: 0.85; }
+
+.btn--danger-outline {
+  background: none; color: var(--colour-error);
+  border: 1.5px solid var(--colour-error);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.82rem; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+}
+.settings-save-status            { text-align: center; font-size: 0.85rem; font-weight: 500; padding: 4px 0; }
+.settings-save-status--success   { color: var(--colour-success); }
+.settings-save-status--error     { color: var(--colour-error); }
+
+/* ============================================================
+   OUTSIDE SCHOOL HOURS
+   ============================================================ */
+.timeline-block--outside-hours { opacity: 0.35; }
+.timeline-block--outside-hours .timeline-block__reapply { display: none; }
+
+.outside-hours-note {
+  background: #f5f5f5;
+  border: 1px solid var(--colour-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 0.85rem;
+  color: var(--colour-text-secondary);
+  margin-bottom: 4px;
+}
