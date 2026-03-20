@@ -1032,38 +1032,60 @@ async function initAuth() {
     return;
   }
 
-  // Listen for future state changes (sign in after redirect, sign out)
+  // Supabase v2 fires INITIAL_SESSION immediately on registration with the current
+  // stored session — this is the primary handler for page-refresh restores.
+  // SIGNED_IN fires after a fresh OAuth redirect. Both use _bootCompleted to
+  // prevent double-boot if the fallback getSession() below also fires.
   supabaseClient.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session?.user && !_bootCompleted) {
-      hideAuthModal();
-      clearGuestMode();
-      updateUserUI(session.user);
-      await migrateGuestToAccount(session.user.id);
-      await bootApp();
+    if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && !_bootCompleted) {
+      if (session?.user) {
+        hideAuthModal();
+        clearGuestMode();
+        updateUserUI(session.user);
+        await migrateGuestToAccount(session.user.id);
+        await bootApp();
+      } else if (event === 'INITIAL_SESSION') {
+        // Initial load with no session confirmed — show auth or boot as guest
+        if (isGuest()) {
+          hideAuthModal();
+          const localPrefs = JSON.parse(localStorage.getItem('sunsmart_prefs') || 'null');
+          if (localPrefs) applyPreferences(localPrefs);
+          document.getElementById('guest-banner')?.classList.remove('hidden');
+          await bootApp();
+        } else {
+          showAuthModal();
+        }
+      }
     } else if (event === 'SIGNED_OUT') {
       _bootCompleted = false;
       showAuthModal();
     }
   });
 
-  // Check existing session (covers returning users and post-OAuth-redirect)
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  if (session?.user) {
+  // Fallback for Supabase v2 builds that don't fire INITIAL_SESSION.
+  // Wrapped in try/catch so any network failure can never leave the page blank.
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
     if (!_bootCompleted) {
-      hideAuthModal();
-      clearGuestMode();
-      updateUserUI(session.user);
-      await migrateGuestToAccount(session.user.id);
-      await bootApp();
+      if (session?.user) {
+        hideAuthModal();
+        clearGuestMode();
+        updateUserUI(session.user);
+        await migrateGuestToAccount(session.user.id);
+        await bootApp();
+      } else if (isGuest()) {
+        hideAuthModal();
+        const localPrefs = JSON.parse(localStorage.getItem('sunsmart_prefs') || 'null');
+        if (localPrefs) applyPreferences(localPrefs);
+        document.getElementById('guest-banner')?.classList.remove('hidden');
+        await bootApp();
+      } else {
+        showAuthModal();
+      }
     }
-  } else if (isGuest()) {
-    hideAuthModal();
-    const localPrefs = JSON.parse(localStorage.getItem('sunsmart_prefs') || 'null');
-    if (localPrefs) applyPreferences(localPrefs);
-    document.getElementById('guest-banner')?.classList.remove('hidden');
-    await bootApp();
-  } else {
-    showAuthModal();
+  } catch (e) {
+    console.error('Session check failed:', e);
+    if (!_bootCompleted) showAuthModal(); // never leave the page blank
   }
 }
 
