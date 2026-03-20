@@ -424,7 +424,10 @@ function renderChart(hourlyData) {
   const nowIdx  = chartData.findIndex(d => d.t === nowHour);
 
   const ctx = document.getElementById('uv-chart').getContext('2d');
-  if (chartInstance) chartInstance.destroy();
+  if (chartInstance) {
+    try { chartInstance.destroy(); } catch { /* ignore stale canvas instance */ }
+    chartInstance = null;
+  }
 
   chartInstance = new Chart(ctx, {
     type: 'line',
@@ -724,7 +727,7 @@ async function loadAndRenderUV(location) {
   const hasAnyCache   = cache && cache.data;
 
   if (hasValidCache) {
-    renderAll(cache.data, location);
+    try { renderAll(cache.data, location); } catch { /* canvas may be stale — refresh will fix it */ }
     silentRefresh(location); // background refresh, don't await
   } else if (hasAnyCache) {
     renderAll(cache.data, location);
@@ -784,12 +787,26 @@ async function init() {
   }
 
   // Location saved — show app and load UV data
-  hideLocationSelector();
-  document.getElementById('location-label').textContent = state.location.label;
-  await loadAndRenderUV(state.location);
+  try {
+    hideLocationSelector();
+    document.getElementById('location-label').textContent = state.location.label;
+    await loadAndRenderUV(state.location);
+  } catch (e) {
+    showAPIError('Something went wrong loading your data. Please try again.');
+    document.getElementById('retry-btn').onclick = () => { hideAPIError(); loadAndRenderUV(state.location); };
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// Handle bfcache restore (mobile browsers cache the full page in memory;
+// the canvas is cleared on restore but chartInstance still thinks it's valid)
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) {
+    chartInstance = null; // force chart to fully re-create on stale canvas
+    init();
+  }
+});
 
 /* ============================================================
    CONDITIONAL EXPORTS FOR NODE.JS TESTING
