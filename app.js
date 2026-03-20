@@ -91,7 +91,7 @@ const POLICY_DATA = {
 function getActions(policyType, uviAtHour) {
   const policy = POLICY_DATA[policyType];
   if (!policy) return { active: false, items: [] };
-  const active = (uviAtHour ?? 0) >= SUNSMART_THRESHOLD;
+  const active = meetsThreshold(uviAtHour);
   const result = { active, items: active ? policy.items : [] };
   if (policyType === 'ec' && active) {
     result.babyCallout = policy.babyCallout;
@@ -153,8 +153,21 @@ function formatHour(isoHourString) {
   return `${hour - 12}:00pm`;
 }
 
+/**
+ * Rounds a raw UV float to 1 decimal place before threshold comparisons.
+ * Open-Meteo returns values like 2.96 which displays as "3.0" but would
+ * fail a raw `>= 3` check — rounding here keeps logic and display in sync.
+ */
+function roundUV(uvi) {
+  return parseFloat((uvi ?? 0).toFixed(1));
+}
+
+function meetsThreshold(uvi) {
+  return roundUV(uvi) >= SUNSMART_THRESHOLD;
+}
+
 function getUVLevel(uvi) {
-  const v = uvi ?? 0;
+  const v = roundUV(uvi);
   if (v >= 11) return 'extreme';
   if (v >= 8)  return 'very-high';
   if (v >= 6)  return 'high';
@@ -183,7 +196,7 @@ function getDailyPeak(hourlyData) {
 function getSunSmartWindow(hourlyData) {
   const activeIdxs = hourlyData.uv_index
     .map((v, i) => ({ v: v ?? 0, i }))
-    .filter(({ v }) => v >= SUNSMART_THRESHOLD)
+    .filter(({ v }) => meetsThreshold(v))
     .map(({ i }) => i);
   if (activeIdxs.length === 0) return null;
   return {
@@ -600,7 +613,7 @@ function renderDataTable(hourlyData) {
     if (hour < CHART_START_HOUR || hour > CHART_END_HOUR) return;
     const uvi = hourlyData.uv_index[i];
     const tr = document.createElement('tr');
-    if ((uvi ?? 0) >= SUNSMART_THRESHOLD) tr.classList.add('active');
+    if (meetsThreshold(uvi)) tr.classList.add('active');
     tr.innerHTML = `<td>${formatHour(t)}</td><td>${uvi !== null && uvi !== undefined ? uvi.toFixed(1) : '–'}</td>`;
     tbody.appendChild(tr);
   });
@@ -729,7 +742,7 @@ function renderTimeline(policyType, hourlyData) {
 
     const uvi       = hourlyData.uv_index[i] ?? 0;
     const level     = getUVLevel(uvi);
-    const isActive  = uvi >= SUNSMART_THRESHOLD;
+    const isActive  = meetsThreshold(uvi);
     const isReapply = reapplyISOStrings.some(r => t.startsWith(r));
 
     const block = document.createElement('div');
