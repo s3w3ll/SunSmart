@@ -1051,8 +1051,16 @@ async function initAuth() {
       hideAuthModal();
       clearGuestMode();
       updateUserUI(session.user);
-      try { await migrateGuestToAccount(session.user.id); } catch (e) { console.warn('migrate:', e); }
+      // Boot immediately — don't block on DB sync
       await bootApp();
+      // Sync preferences from DB in background; re-render if anything changed
+      migrateGuestToAccount(session.user.id)
+        .then(() => {
+          const state = loadState();
+          const cache = loadCachedUV();
+          if (state.location && cache?.data) renderAll(cache.data, state.location);
+        })
+        .catch(e => console.warn('Background DB sync failed:', e));
     } else if (event === 'TOKEN_REFRESHED' && session?.user) {
       updateUserUI(session.user);
     } else if (event === 'SIGNED_OUT') {
@@ -1064,33 +1072,47 @@ async function initAuth() {
   });
 
   // getSession() is the authoritative initial session check.
-  // It waits for any pending token refresh before resolving, so the result
-  // is always the definitive current auth state on page load.
+  // A 10-second timeout prevents the app from hanging indefinitely when the
+  // token-refresh network call stalls (e.g. firewall, Supabase slow, offline).
+  let _session = null;
   try {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-
-    if (_bootCompleted) return; // SIGNED_IN via onAuthStateChange already handled it
-
-    hideAuthLoading();
-
-    if (session?.user) {
-      hideAuthModal();
-      clearGuestMode();
-      updateUserUI(session.user);
-      try { await migrateGuestToAccount(session.user.id); } catch (e) { console.warn('migrate:', e); }
-      await bootApp();
-    } else if (isGuest()) {
-      const localPrefs = JSON.parse(localStorage.getItem('sunsmart_prefs') || 'null');
-      if (localPrefs) applyPreferences(localPrefs);
-      document.getElementById('guest-banner')?.classList.remove('hidden');
-      await bootApp();
-    } else {
-      showAuthModal();
-    }
+    const result = await Promise.race([
+      supabaseClient.auth.getSession(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('getSession timeout')), 10_000)
+      ),
+    ]);
+    _session = result.data?.session ?? null;
   } catch (e) {
-    console.error('getSession() failed:', e);
-    hideAuthLoading();
-    if (!_bootCompleted) showAuthModal();
+    if (!e.message?.includes('timeout')) console.error('getSession() failed:', e);
+    // _session stays null — fall through to show auth modal
+  }
+
+  if (_bootCompleted) return; // onAuthStateChange SIGNED_IN already handled this
+
+  hideAuthLoading();
+
+  if (_session?.user) {
+    hideAuthModal();
+    clearGuestMode();
+    updateUserUI(_session.user);
+    // Boot immediately with local state — don't block on DB
+    await bootApp();
+    // Sync preferences from DB in background; re-render if anything changed
+    migrateGuestToAccount(_session.user.id)
+      .then(() => {
+        const state = loadState();
+        const cache = loadCachedUV();
+        if (state.location && cache?.data) renderAll(cache.data, state.location);
+      })
+      .catch(e => console.warn('Background DB sync failed:', e));
+  } else if (isGuest()) {
+    const localPrefs = JSON.parse(localStorage.getItem('sunsmart_prefs') || 'null');
+    if (localPrefs) applyPreferences(localPrefs);
+    document.getElementById('guest-banner')?.classList.remove('hidden');
+    await bootApp();
+  } else {
+    showAuthModal();
   }
 }
 
