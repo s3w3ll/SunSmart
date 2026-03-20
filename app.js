@@ -737,6 +737,7 @@ async function loadAndRenderUV(location) {
     } catch (e) {
       if (e.name !== 'AbortError') {
         showAPIError('Could not refresh UV data. Showing last known data.');
+        document.getElementById('retry-btn').onclick = () => loadAndRenderUV(location);
       }
     }
   } else {
