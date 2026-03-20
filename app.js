@@ -68,14 +68,90 @@ function getActions(policyType, uviAtHour) {
 /* ============================================================
    UV DATA UTILITIES
    ============================================================ */
-function getNZLocalDate(timestamp) {}
-function getNZHourString() {}
-function formatHour(isoHourString) {}
-function getUVLevel(uvi) {}
-function getCurrentUVI(hourlyData) {}
-function getDailyPeak(hourlyData) {}
-function getSunSmartWindow(hourlyData) {}
-function getSunscreenTiming(hourlyData) {}
+function getNZLocalDate(timestamp) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Pacific/Auckland',
+  }).format(new Date(timestamp));
+}
+
+function getNZHourString() {
+  // Returns "YYYY-MM-DDTHH:00" matching Open-Meteo timestamp format, in NZ local time
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Pacific/Auckland',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', hour12: false,
+  }).formatToParts(now);
+  const get = (type) => parts.find(p => p.type === type).value;
+  const hour = get('hour') === '24' ? '00' : get('hour');
+  return `${get('year')}-${get('month')}-${get('day')}T${hour}:00`;
+}
+
+function formatHour(isoHourString) {
+  // "2026-03-20T14:00" → "2:00pm"
+  const hour = parseInt(isoHourString.split('T')[1].split(':')[0], 10);
+  if (hour === 0)  return '12:00am';
+  if (hour < 12)  return `${hour}:00am`;
+  if (hour === 12) return '12:00pm';
+  return `${hour - 12}:00pm`;
+}
+
+function getUVLevel(uvi) {
+  const v = uvi ?? 0;
+  if (v >= 11) return 'extreme';
+  if (v >= 8)  return 'very-high';
+  if (v >= 6)  return 'high';
+  if (v >= 3)  return 'moderate';
+  return 'low';
+}
+
+function getCurrentUVI(hourlyData) {
+  const nowHour = getNZHourString();
+  const idx = hourlyData.time.indexOf(nowHour);
+  if (idx === -1) return 0;
+  return hourlyData.uv_index[idx] ?? 0;
+}
+
+function getDailyPeak(hourlyData) {
+  let maxVal = -1;
+  let maxIdx = -1;
+  hourlyData.uv_index.forEach((v, i) => {
+    const val = v ?? 0;
+    if (val > maxVal) { maxVal = val; maxIdx = i; }
+  });
+  if (maxVal <= 0) return null;
+  return { value: maxVal, time: hourlyData.time[maxIdx] };
+}
+
+function getSunSmartWindow(hourlyData) {
+  const activeIdxs = hourlyData.uv_index
+    .map((v, i) => ({ v: v ?? 0, i }))
+    .filter(({ v }) => v >= SUNSMART_THRESHOLD)
+    .map(({ i }) => i);
+  if (activeIdxs.length === 0) return null;
+  return {
+    start: hourlyData.time[activeIdxs[0]],
+    end:   hourlyData.time[activeIdxs[activeIdxs.length - 1]],
+  };
+}
+
+function getSunscreenTiming(hourlyData) {
+  const window = getSunSmartWindow(hourlyData);
+  if (!window) return null;
+
+  const firstActive = new Date(window.start);
+  const lastActive  = new Date(window.end);
+  const applyBy     = new Date(firstActive.getTime() - SUNSCREEN_APPLY_BEFORE_MIN * 60 * 1000);
+
+  const reapplyTimes = [];
+  let t = new Date(firstActive);
+  while (t <= lastActive) {
+    reapplyTimes.push(new Date(t));
+    t = new Date(t.getTime() + SUNSCREEN_REAPPLY_INTERVAL_MS);
+  }
+
+  return { applyBy, reapplyTimes };
+}
 
 /* ============================================================
    CACHE & STATE
