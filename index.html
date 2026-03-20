@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SunSmart UV — NZ Schools</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Location selector (shown full-screen when no location saved) -->
+  <div id="location-selector" class="location-selector hidden" role="main" aria-label="Location setup">
+    <div class="location-selector__inner">
+      <h1 class="app-title">☀️ SunSmart UV</h1>
+      <p class="location-selector__prompt">Find your school's UV level</p>
+      <div class="search-box">
+        <input
+          id="address-input"
+          type="search"
+          placeholder="Search suburb or school address…"
+          autocomplete="off"
+          aria-label="Search for your school address"
+          aria-autocomplete="list"
+          aria-controls="address-results"
+        />
+        <ul id="address-results" class="search-results hidden" role="listbox" aria-label="Address suggestions"></ul>
+      </div>
+      <div class="divider"><span>or</span></div>
+      <button id="gps-btn" class="btn btn--secondary" type="button">
+        📍 Use my current location
+      </button>
+      <p id="location-error" class="error-text hidden" role="alert"></p>
+    </div>
+  </div>
+
+  <!-- Main app (shown after location is set) -->
+  <main id="app" class="app hidden" aria-label="SunSmart UV dashboard">
+
+    <!-- UV Data Card -->
+    <section id="uv-card" class="uv-card" aria-label="UV index summary">
+      <div class="uv-card__header">
+        <span id="location-label" class="location-label"></span>
+        <button id="change-location-btn" class="btn-link" type="button" aria-label="Change location">change</button>
+      </div>
+      <div class="uv-card__body">
+        <div class="uv-card__index-wrap">
+          <span class="uv-card__label">Forecast UV</span>
+          <span id="uv-current" class="uv-card__index" aria-live="polite">–</span>
+          <span id="uv-level" class="uv-card__level"></span>
+        </div>
+        <div class="uv-card__meta">
+          <p id="uv-peak" class="uv-card__meta-line"></p>
+          <p id="uv-window" class="uv-card__meta-line"></p>
+          <p id="uv-window-note" class="uv-card__meta-note hidden">Protection may be required during this window</p>
+        </div>
+      </div>
+      <p id="uv-stale-warning" class="stale-warning hidden" aria-live="polite"></p>
+    </section>
+
+    <!-- UV Chart -->
+    <section class="chart-section" aria-label="UV index chart">
+      <div class="chart-wrap">
+        <canvas id="uv-chart" role="img" aria-label="UV index forecast chart"></canvas>
+      </div>
+      <details class="data-table-wrap">
+        <summary class="data-table-toggle">View hourly data ▾</summary>
+        <table id="uv-table" class="uv-table">
+          <thead><tr><th>Time</th><th>UV Index</th></tr></thead>
+          <tbody id="uv-table-body"></tbody>
+        </table>
+      </details>
+    </section>
+
+    <!-- Policy Action Panel -->
+    <section class="policy-section" aria-label="SunSmart policy actions">
+
+      <div class="policy-pills" role="group" aria-label="Select your policy type">
+        <span class="policy-pills__label">Your policy type:</span>
+        <div class="policy-pills__buttons">
+          <button class="pill" data-policy="ec" type="button">Early Childhood</button>
+          <button class="pill" data-policy="primary" type="button">Primary / Intermediate</button>
+          <button class="pill" data-policy="secondary" type="button">Secondary</button>
+        </div>
+      </div>
+
+      <div id="policy-prompt" class="policy-prompt hidden" role="status">
+        Select your policy type to see required actions
+      </div>
+
+      <!-- Right Now checklist -->
+      <div id="checklist-section" class="checklist-section hidden">
+        <div id="checklist-status" class="checklist-status" role="status" aria-live="polite"></div>
+        <div id="sunscreen-prompt" class="sunscreen-prompt hidden" role="alert"></div>
+        <div id="baby-callout" class="baby-callout hidden" role="note"></div>
+        <ul id="checklist" class="checklist" aria-label="SunSmart actions"></ul>
+      </div>
+
+      <!-- Timeline -->
+      <details id="timeline-details" class="timeline-details hidden">
+        <summary class="timeline-toggle">Plan your day ▾</summary>
+        <div id="timeline" class="timeline" role="list" aria-label="Hourly SunSmart timeline"></div>
+        <!-- Hour detail popup -->
+        <div id="hour-detail" class="hour-detail hidden" aria-live="polite"></div>
+      </details>
+
+    </section>
+
+    <!-- End of day / loading / error states -->
+    <div id="end-of-day" class="status-banner status-banner--info hidden" role="status">
+      Today's UV data complete — check back tomorrow.
+    </div>
+    <div id="loading-indicator" class="status-banner status-banner--loading hidden" role="status" aria-live="polite">
+      Loading UV data…
+    </div>
+    <div id="api-error" class="status-banner status-banner--error hidden" role="alert">
+      <span id="api-error-msg"></span>
+      <button id="retry-btn" class="btn btn--small" type="button">Retry</button>
+    </div>
+
+  </main>
+
+  <!-- CDN scripts — load Chart.js before app.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
