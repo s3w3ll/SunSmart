@@ -194,7 +194,7 @@ function loadState() {
   try {
     return {
       location: JSON.parse(localStorage.getItem('sunsmart_location') || 'null'),
-      policy:   localStorage.getItem('sunsmart_policy') || null,
+      policy:   JSON.parse(localStorage.getItem('sunsmart_policy') || 'null'),
       uvCache:  JSON.parse(localStorage.getItem('sunsmart_uv_cache') || 'null'),
     };
   } catch {
