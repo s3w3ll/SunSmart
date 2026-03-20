@@ -876,17 +876,9 @@ async function signInWithGoogle() {
 
 async function signOut() {
   if (!supabaseClient) return;
-  await supabaseClient.auth.signOut();
-  clearGuestMode();
-  clearState('sunsmart_location');
-  clearState('sunsmart_policy');
-  clearState('sunsmart_uv_cache');
-  clearState('sunsmart_prefs');
-  appState.schoolPrefs = { ...DEFAULT_SCHOOL_PREFS };
-  appState.user        = null;
-  _bootCompleted       = false;
   hideSettingsPanel();
-  showAuthModal();
+  await supabaseClient.auth.signOut();
+  // SIGNED_OUT event in onAuthStateChange handles the UI transition
 }
 
 /* ============================================================
@@ -1033,7 +1025,9 @@ async function initAuth() {
 
   if (!supabaseClient) {
     hideAuthLoading();
-    if (isGuest()) { bootApp(); } else { showAuthModal(); }
+    if (!isGuest()) setGuestMode();
+    document.getElementById('guest-banner')?.classList.remove('hidden');
+    await bootApp();
     return;
   }
 
@@ -1063,11 +1057,26 @@ async function initAuth() {
         .catch(e => console.warn('Background DB sync failed:', e));
     } else if (event === 'TOKEN_REFRESHED' && session?.user) {
       updateUserUI(session.user);
+      // Silently upgrade if we previously booted as guest (e.g. getSession timed out)
+      if (isGuest()) {
+        clearGuestMode();
+        document.getElementById('guest-banner')?.classList.add('hidden');
+        migrateGuestToAccount(session.user.id)
+          .then(() => {
+            const state = loadState();
+            const cache = loadCachedUV();
+            if (state.location && cache?.data) renderAll(cache.data, state.location);
+          })
+          .catch(e => console.warn('Silent upgrade sync failed:', e));
+      }
     } else if (event === 'SIGNED_OUT') {
+      // Keep local state (location, policy, prefs) — just drop back to guest mode
       _bootCompleted = false;
       appState.user  = null;
       hideAuthLoading();
-      showAuthModal();
+      setGuestMode();
+      document.getElementById('guest-banner')?.classList.remove('hidden');
+      await bootApp();
     }
   });
 
@@ -1112,7 +1121,10 @@ async function initAuth() {
     document.getElementById('guest-banner')?.classList.remove('hidden');
     await bootApp();
   } else {
-    showAuthModal();
+    // No session, not a returning guest — auto-continue as guest
+    setGuestMode();
+    document.getElementById('guest-banner')?.classList.remove('hidden');
+    await bootApp();
   }
 }
 
