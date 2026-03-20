@@ -645,9 +645,6 @@ function renderChecklist(policyType, hourlyData) {
 }
 
 function renderTimeline(policyType, hourlyData) {
-  const sunscreenTiming    = getSunscreenTiming(hourlyData);
-  const reapplyISOStrings  = (sunscreenTiming?.reapplyTimes || [])
-    .map(d => nzISOString(d));
 
   const { start: tlStart, end: tlEnd } = getSchoolHourRange();
 
@@ -669,7 +666,6 @@ function renderTimeline(policyType, hourlyData) {
     const uvi       = hourlyData.uv_index[i] ?? 0;
     const level     = getUVLevel(uvi);
     const isActive  = meetsThreshold(uvi);
-    const isReapply = reapplyISOStrings.some(r => t.startsWith(r));
 
     const block = document.createElement('div');
     block.className = 'timeline-block';
@@ -677,13 +673,6 @@ function renderTimeline(policyType, hourlyData) {
     block.setAttribute('role', 'listitem');
     block.setAttribute('aria-label', `${formatHour(t)}: UVI ${uvi > 0 ? uvi.toFixed(1) : '–'}`);
     block.tabIndex = 0;
-
-    if (isReapply) {
-      const dot = document.createElement('div');
-      dot.className = 'timeline-block__reapply';
-      dot.title = 'Sunscreen reapply time';
-      block.appendChild(dot);
-    }
 
     const timeLabel = document.createElement('span');
     timeLabel.className = 'timeline-block__time';
@@ -819,21 +808,27 @@ async function bootApp() {
   const policyType = state.policy;
 
   // Restore policy pill active state
-  if (policyType) {
-    document.querySelectorAll('.pill').forEach(p => {
-      p.classList.toggle('active', p.dataset.policy === policyType);
-    });
-  }
+  document.querySelectorAll('.pill').forEach(p => {
+    p.classList.toggle('active', p.dataset.policy === policyType);
+  });
 
   if (!state.location) {
     showLocationSelector();
     return;
   }
 
+  document.getElementById('location-selector').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('location-label').textContent = state.location.label;
+
+  // Render the policy panel immediately from cache so it is never blank
+  // while the UV fetch is in flight (or if it fails silently).
+  const cachedData = loadCachedUV();
+  if (policyType && cachedData?.data) {
+    renderPolicyPanel(policyType, cachedData.data);
+  }
+
   try {
-    document.getElementById('location-selector').classList.add('hidden');
-    document.getElementById('app').classList.remove('hidden');
-    document.getElementById('location-label').textContent = state.location.label;
     await loadAndRenderUV(state.location);
   } catch (e) {
     showAPIError('Something went wrong loading your data. Please try again.');
