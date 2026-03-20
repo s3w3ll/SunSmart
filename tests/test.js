@@ -199,5 +199,30 @@ test('returns null when no active hours', () => {
   assert.strictEqual(getSunscreenTiming(data), null);
 });
 
+// ============================================================
+// Cache & State
+// ============================================================
+console.log('\nisCacheValid()');
+
+test('returns false when cache is null', () => {
+  assert.strictEqual(isCacheValid(null, -36.8, 174.7), false);
+});
+test('returns false when cache has no fetchedAt', () => {
+  assert.strictEqual(isCacheValid({ data: {}, lat: -36.8, long: 174.7 }, -36.8, 174.7), false);
+});
+test('returns true for same NZ calendar day and same coords', () => {
+  const cache = { data: { time: [], uv_index: [] }, fetchedAt: Date.now(), lat: -36.8, long: 174.7 };
+  assert.strictEqual(isCacheValid(cache, -36.8, 174.7), true);
+});
+test('returns false when lat differs significantly', () => {
+  const cache = { data: { time: [], uv_index: [] }, fetchedAt: Date.now(), lat: -36.8, long: 174.7 };
+  assert.strictEqual(isCacheValid(cache, -41.3, 174.7), false);
+});
+test('returns false when fetchedAt is 48 hours ago (different day)', () => {
+  const yesterday = Date.now() - 48 * 60 * 60 * 1000;
+  const cache = { data: { time: [], uv_index: [] }, fetchedAt: yesterday, lat: -36.8, long: 174.7 };
+  assert.strictEqual(isCacheValid(cache, -36.8, 174.7), false);
+});
+
 console.log(`\n${passed} passed, ${failed} failed\n`);
 if (failed > 0) process.exit(1);

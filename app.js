@@ -156,12 +156,46 @@ function getSunscreenTiming(hourlyData) {
 /* ============================================================
    CACHE & STATE
    ============================================================ */
-function loadState() {}
-function saveState(key, value) {}
-function clearState(key) {}
-function isCacheValid(cache, lat, long) {}
-function cacheUVData(data, lat, long) {}
-function loadCachedUV() {}
+function loadState() {
+  try {
+    return {
+      location: JSON.parse(localStorage.getItem('sunsmart_location') || 'null'),
+      policy:   localStorage.getItem('sunsmart_policy') || null,
+      uvCache:  JSON.parse(localStorage.getItem('sunsmart_uv_cache') || 'null'),
+    };
+  } catch {
+    return { location: null, policy: null, uvCache: null };
+  }
+}
+
+function saveState(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch { /* storage full — silently ignore */ }
+}
+
+function clearState(key) {
+  try { localStorage.removeItem(key); } catch { /* ignore */ }
+}
+
+function isCacheValid(cache, lat, long) {
+  if (!cache || !cache.fetchedAt || !cache.data) return false;
+  const cacheDate = getNZLocalDate(cache.fetchedAt);
+  const todayDate = getNZLocalDate(Date.now());
+  if (cacheDate !== todayDate) return false;
+  if (Math.abs((cache.lat ?? 999) - lat)  > 0.01) return false;
+  if (Math.abs((cache.long ?? 999) - long) > 0.01) return false;
+  return true;
+}
+
+function cacheUVData(data, lat, long) {
+  saveState('sunsmart_uv_cache', { data, fetchedAt: Date.now(), lat, long });
+}
+
+function loadCachedUV() {
+  const state = loadState();
+  return state.uvCache;
+}
 
 /* ============================================================
    API
