@@ -371,6 +371,24 @@ ul { list-style: none; }
 }
 
 /* ============================================================
+   AUTH LOADING SCREEN
+   ============================================================ */
+.auth-loading {
+  position: fixed;
+  inset: 0;
+  background: var(--colour-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000; /* above everything */
+  transition: opacity 0.2s;
+}
+.auth-loading.hidden { display: none !important; }
+.auth-loading__inner { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.auth-loading__logo   { font-size: 3rem; }
+.auth-loading__text   { color: var(--colour-text-secondary); font-size: 0.95rem; }
+
+/* ============================================================
    AUTH MODAL
    ============================================================ */
 .auth-modal {

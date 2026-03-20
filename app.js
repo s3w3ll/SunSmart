@@ -1015,11 +1015,16 @@ function updateUserUI(user) {
    AUTH INITIALISATION
    ============================================================ */
 
+function hideAuthLoading() {
+  document.getElementById('auth-loading')?.classList.add('hidden');
+}
+
 async function initAuth() {
   // Wire auth modal buttons
   document.getElementById('google-signin-btn').addEventListener('click', signInWithGoogle);
   document.getElementById('guest-btn').addEventListener('click', () => {
     setGuestMode();
+    hideAuthLoading();
     hideAuthModal();
     document.getElementById('guest-banner')?.classList.remove('hidden');
     bootApp();
@@ -1027,65 +1032,65 @@ async function initAuth() {
   document.getElementById('guest-banner-signin-btn')?.addEventListener('click', signInWithGoogle);
 
   if (!supabaseClient) {
-    // Supabase CDN unavailable — treat as guest
-    if (isGuest()) { hideAuthModal(); bootApp(); } else { showAuthModal(); }
+    hideAuthLoading();
+    if (isGuest()) { bootApp(); } else { showAuthModal(); }
     return;
   }
 
-  // Supabase v2 fires INITIAL_SESSION immediately on registration with the current
-  // stored session — this is the primary handler for page-refresh restores.
-  // SIGNED_IN fires after a fresh OAuth redirect. Both use _bootCompleted to
-  // prevent double-boot if the fallback getSession() below also fires.
+  // onAuthStateChange handles only FUTURE transitions after initial load:
+  //   SIGNED_IN      — fresh OAuth redirect returning to the app
+  //   TOKEN_REFRESHED — silent token refresh; keep user object current
+  //   SIGNED_OUT     — explicit sign-out or server-side session revocation
+  //
+  // Initial page-load restore is handled exclusively by getSession() below,
+  // which waits for any in-flight token refresh before resolving — giving a
+  // definitive answer with no race conditions.
   supabaseClient.auth.onAuthStateChange(async (event, session) => {
-    if ((event === 'INITIAL_SESSION' || event === 'SIGNED_IN') && !_bootCompleted) {
-      if (session?.user) {
-        hideAuthModal();
-        clearGuestMode();
-        updateUserUI(session.user);
-        await migrateGuestToAccount(session.user.id);
-        await bootApp();
-      } else if (event === 'INITIAL_SESSION') {
-        // Initial load with no session confirmed — show auth or boot as guest
-        if (isGuest()) {
-          hideAuthModal();
-          const localPrefs = JSON.parse(localStorage.getItem('sunsmart_prefs') || 'null');
-          if (localPrefs) applyPreferences(localPrefs);
-          document.getElementById('guest-banner')?.classList.remove('hidden');
-          await bootApp();
-        } else {
-          showAuthModal();
-        }
-      }
+    if (event === 'SIGNED_IN' && session?.user && !_bootCompleted) {
+      hideAuthLoading();
+      hideAuthModal();
+      clearGuestMode();
+      updateUserUI(session.user);
+      try { await migrateGuestToAccount(session.user.id); } catch (e) { console.warn('migrate:', e); }
+      await bootApp();
+    } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+      updateUserUI(session.user);
     } else if (event === 'SIGNED_OUT') {
       _bootCompleted = false;
+      appState.user  = null;
+      hideAuthLoading();
       showAuthModal();
     }
   });
 
-  // Fallback for Supabase v2 builds that don't fire INITIAL_SESSION.
-  // Wrapped in try/catch so any network failure can never leave the page blank.
+  // getSession() is the authoritative initial session check.
+  // It waits for any pending token refresh before resolving, so the result
+  // is always the definitive current auth state on page load.
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!_bootCompleted) {
-      if (session?.user) {
-        hideAuthModal();
-        clearGuestMode();
-        updateUserUI(session.user);
-        await migrateGuestToAccount(session.user.id);
-        await bootApp();
-      } else if (isGuest()) {
-        hideAuthModal();
-        const localPrefs = JSON.parse(localStorage.getItem('sunsmart_prefs') || 'null');
-        if (localPrefs) applyPreferences(localPrefs);
-        document.getElementById('guest-banner')?.classList.remove('hidden');
-        await bootApp();
-      } else {
-        showAuthModal();
-      }
+
+    if (_bootCompleted) return; // SIGNED_IN via onAuthStateChange already handled it
+
+    hideAuthLoading();
+
+    if (session?.user) {
+      hideAuthModal();
+      clearGuestMode();
+      updateUserUI(session.user);
+      try { await migrateGuestToAccount(session.user.id); } catch (e) { console.warn('migrate:', e); }
+      await bootApp();
+    } else if (isGuest()) {
+      const localPrefs = JSON.parse(localStorage.getItem('sunsmart_prefs') || 'null');
+      if (localPrefs) applyPreferences(localPrefs);
+      document.getElementById('guest-banner')?.classList.remove('hidden');
+      await bootApp();
+    } else {
+      showAuthModal();
     }
   } catch (e) {
-    console.error('Session check failed:', e);
-    if (!_bootCompleted) showAuthModal(); // never leave the page blank
+    console.error('getSession() failed:', e);
+    hideAuthLoading();
+    if (!_bootCompleted) showAuthModal();
   }
 }
 
