@@ -443,7 +443,7 @@ const UV_LEVEL_LABELS = {
   'very-high': 'Very High', 'extreme': 'Extreme',
 };
 
-function renderUVCard(hourlyData, location) {
+function renderUVCard(hourlyData, location, policyType) {
   const currentUVI = getCurrentUVI(hourlyData);
   const level      = getUVLevel(currentUVI);
   const peak       = getDailyPeak(hourlyData);
@@ -468,7 +468,10 @@ function renderUVCard(hourlyData, location) {
   // SunSmart active window
   const windowEl   = document.getElementById('uv-window');
   const windowNote = document.getElementById('uv-window-note');
-  if (uvWindow) {
+  if (!policyType) {
+    windowEl.textContent = 'Select a Policy Type ↓';
+    windowNote.classList.add('hidden');
+  } else if (uvWindow) {
     windowEl.textContent = `SunSmart hours: ${formatHour(uvWindow.start)} – ${formatHour(uvWindow.end)}`;
     windowNote.classList.remove('hidden');
   } else {
@@ -1277,7 +1280,7 @@ function initSettingsPanel() {
 function renderAll(hourlyData, location) {
   const state      = loadState();
   const policyType = appState.schoolPrefs.policy_type || state.policy;
-  renderUVCard(hourlyData, location);
+  renderUVCard(hourlyData, location, policyType);
   renderChart(hourlyData);
   renderDataTable(hourlyData);
   renderPolicyPanel(policyType, hourlyData);
