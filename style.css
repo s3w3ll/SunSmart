@@ -666,6 +666,27 @@ ul { list-style: none; }
 .uv-card[data-level="moderate"] .school-hours-edit:hover { background: rgba(0,0,0,0.13); }
 
 /* ============================================================
+   RESET BAR
+   ============================================================ */
+.reset-bar {
+  padding: 24px var(--spacing) 16px;
+  display: flex;
+  justify-content: center;
+}
+.reset-btn {
+  background: none;
+  border: none;
+  color: var(--colour-text-secondary);
+  font-size: 0.78rem;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 4px 8px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.reset-btn:hover { opacity: 1; }
+
+/* ============================================================
    OUTSIDE SCHOOL HOURS
    ============================================================ */
 .timeline-block--outside-hours { opacity: 0.35; }

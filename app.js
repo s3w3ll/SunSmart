@@ -1152,6 +1152,35 @@ function initSettingsPanel() {
     });
   });
 
+  // Reset all local settings
+  document.getElementById('reset-btn').addEventListener('click', async () => {
+    if (!confirm('Reset your location, school hours, and policy selection?')) return;
+
+    // Clear localStorage
+    clearState('sunsmart_location');
+    clearState('sunsmart_policy');
+    clearState('sunsmart_uv_cache');
+    clearState('sunsmart_prefs');
+
+    // Clear Supabase row for authenticated users
+    if (supabaseClient && appState.user) {
+      try {
+        await supabaseClient
+          .from('school_preferences')
+          .delete()
+          .eq('user_id', appState.user.id);
+      } catch (e) { console.warn('Could not clear remote preferences:', e); }
+    }
+
+    // Reset in-memory state
+    appState.schoolPrefs = { ...DEFAULT_SCHOOL_PREFS };
+    _bootCompleted = false;
+
+    // Abort any in-flight UV fetch and go back to location selector
+    if (currentFetchController) currentFetchController.abort();
+    showLocationSelector();
+  });
+
   // Save
   document.getElementById('settings-save-btn').addEventListener('click', async () => {
     const state      = loadState();
