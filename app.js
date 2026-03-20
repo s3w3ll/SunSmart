@@ -3,45 +3,13 @@
    ============================================================ */
 const NZ_BOUNDS = { latMin: -47, latMax: -34, longMin: 166, longMax: 178 };
 const SUNSMART_THRESHOLD = 3;
-const CHART_START_HOUR = 6;   // 6am NZ local
-const CHART_END_HOUR = 19;    // 7pm NZ local
+const CHART_START_HOUR = 7;   // 7am NZ local
+const CHART_END_HOUR = 18;    // 6pm NZ local
 const END_OF_DAY_HOUR = 19;   // past 7pm → "check back tomorrow"
 const SUNSCREEN_APPLY_BEFORE_MIN = 20;
 const SUNSCREEN_REAPPLY_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
-/* ============================================================
-   SUPABASE CONFIG
-   ============================================================ */
-const SUPABASE_URL      = 'https://ixeodnoimeewaafzwssx.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_7KhAjFqiaftJk0n6Y6i-9A_eY5BXNRg';
-
-// Graceful degradation: if the CDN fails to load, the app falls back to guest mode
-let supabaseClient = null;
-try {
-  supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) ?? null;
-} catch { /* Supabase CDN blocked or unavailable — auth features disabled */ }
-
-/* ============================================================
-   APP STATE
-   ============================================================ */
-const DEFAULT_SCHOOL_PREFS = {
-  school_name:    '',
-  location_label: null,
-  lat:            null,
-  long:           null,
-  policy_type:    null,
-  open_time:      '08:30',
-  close_time:     '15:00',
-  open_days:      [1, 2, 3, 4, 5],
-};
-
-const appState = {
-  schoolPrefs: { ...DEFAULT_SCHOOL_PREFS },
-  user:        null,   // Supabase User object when signed in
-};
-
 let _listenersInitialized = false;  // prevents duplicate listeners on bfcache restore
-let _bootCompleted        = false;  // prevents double-boot from onAuthStateChange + getSession
 
 /* ============================================================
    POLICY DATA
@@ -102,27 +70,9 @@ function getActions(policyType, uviAtHour) {
 /* ============================================================
    UV DATA UTILITIES
    ============================================================ */
-/**
- * Returns the chart/timeline hour window for the configured school hours.
- * Start is floored to the whole hour (8:30 → 8).
- * End is ceiled to the next whole hour only if not already on the hour (3:30 → 4, 3:00 → 3).
- */
-function getSchoolHourRange(prefs) {
-  const p = prefs || DEFAULT_SCHOOL_PREFS;
-  const [openH, openM]   = (p.open_time  || '08:30').split(':').map(Number);
-  const [closeH, closeM] = (p.close_time || '15:00').split(':').map(Number);
-  return {
-    start: openH,
-    end:   closeM > 0 ? closeH + 1 : closeH,
-  };
-}
-
-/** Formats a "HH:MM" time string to "8:30am" / "3pm" style. */
-function formatTimeStr(hhmm) {
-  const [h, m] = (hhmm || '00:00').split(':').map(Number);
-  const period = h < 12 ? 'am' : 'pm';
-  const hour   = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return m > 0 ? `${hour}:${String(m).padStart(2, '0')}${period}` : `${hour}${period}`;
+/** Returns the fixed chart/timeline hour window (7am–6pm). */
+function getSchoolHourRange() {
+  return { start: CHART_START_HOUR, end: CHART_END_HOUR };
 }
 
 function getNZLocalDate(timestamp) {
@@ -421,14 +371,6 @@ function initLocationSelector() {
 async function selectLocation(lat, long, label) {
   const location = { lat, long, label };
   saveState('sunsmart_location', location);
-  // Sync into preferences and persist
-  appState.schoolPrefs.lat            = lat;
-  appState.schoolPrefs.long           = long;
-  appState.schoolPrefs.location_label = label;
-  savePreferences(appState.schoolPrefs); // non-blocking background save
-  // Keep settings panel label up to date if it's open
-  const settingsLocEl = document.getElementById('settings-location-label');
-  if (settingsLocEl) settingsLocEl.textContent = label;
   hideLocationSelector();
   document.getElementById('app').classList.remove('hidden');
   document.getElementById('location-label').textContent = label;
@@ -479,16 +421,6 @@ function renderUVCard(hourlyData, location, policyType) {
     windowNote.classList.add('hidden');
   }
 
-  // School hours display
-  const schoolHoursEl     = document.getElementById('school-hours-display');
-  const schoolHoursTextEl = document.getElementById('school-hours-text');
-  if (schoolHoursEl && schoolHoursTextEl) {
-    const p = appState.schoolPrefs;
-    schoolHoursTextEl.textContent =
-      `🏫 School hours: ${formatTimeStr(p.open_time || '08:30')} – ${formatTimeStr(p.close_time || '15:00')}`;
-    schoolHoursEl.classList.remove('hidden');
-  }
-
   // End-of-day check
   const nowParts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Pacific/Auckland', hour: '2-digit', hour12: false,
@@ -503,7 +435,7 @@ function renderUVCard(hourlyData, location, policyType) {
 let chartInstance = null;
 
 function renderChart(hourlyData) {
-  const { start: chartStart, end: chartEnd } = getSchoolHourRange(appState.schoolPrefs);
+  const { start: chartStart, end: chartEnd } = getSchoolHourRange();
   const chartData = hourlyData.time
     .map((t, i) => ({ t, v: hourlyData.uv_index[i] }))
     .filter(({ t }) => {
@@ -626,18 +558,12 @@ function renderDataTable(hourlyData) {
    RENDERING — Policy Action Panel
    ============================================================ */
 function initPolicyPills() {
-  document.querySelectorAll('.pill:not(.settings-pill)').forEach(btn => {
+  document.querySelectorAll('.pill').forEach(btn => {
     btn.addEventListener('click', () => {
       const policyType = btn.dataset.policy;
       saveState('sunsmart_policy', policyType);
-      appState.schoolPrefs.policy_type = policyType;
-      savePreferences(appState.schoolPrefs);
-      document.querySelectorAll('.pill:not(.settings-pill)').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
-      // Mirror to settings pills
-      document.querySelectorAll('.settings-pill').forEach(p => {
-        p.classList.toggle('active', p.dataset.policy === policyType);
-      });
       const cache = loadCachedUV();
       if (cache && cache.data) renderPolicyPanel(policyType, cache.data);
     });
@@ -674,13 +600,6 @@ function renderChecklist(policyType, hourlyData) {
   const sunscreenPromptEl = document.getElementById('sunscreen-prompt');
   const babyCalloutEl     = document.getElementById('baby-callout');
   const listEl            = document.getElementById('checklist');
-
-  // Outside school hours note
-  const outsideHoursEl = document.getElementById('outside-hours-note');
-  if (outsideHoursEl) {
-    const withinHours = isWithinSchoolHours(getNZHourString(), appState.schoolPrefs);
-    outsideHoursEl.classList.toggle('hidden', withinHours || !actions.active);
-  }
 
   // Status banner
   if (actions.active) {
@@ -725,13 +644,12 @@ function renderTimeline(policyType, hourlyData) {
   const reapplyISOStrings  = (sunscreenTiming?.reapplyTimes || [])
     .map(d => d.toISOString().slice(0, 16));
 
-  const { start: tlStart, end: tlEnd } = getSchoolHourRange(appState.schoolPrefs);
+  const { start: tlStart, end: tlEnd } = getSchoolHourRange();
 
-  // Update the toggle label to show the school hours window
+  // Update the toggle label
   const toggleLabelEl = document.getElementById('timeline-toggle-label');
   if (toggleLabelEl) {
-    const fmtH = h => h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h - 12}pm`;
-    toggleLabelEl.textContent = `Plan your day (${fmtH(tlStart)}–${fmtH(tlEnd)})`;
+    toggleLabelEl.textContent = 'Plan your day';
   }
 
   const timelineEl   = document.getElementById('timeline');
@@ -750,9 +668,6 @@ function renderTimeline(policyType, hourlyData) {
 
     const block = document.createElement('div');
     block.className = 'timeline-block';
-    if (!isWithinSchoolHours(t, appState.schoolPrefs)) {
-      block.classList.add('timeline-block--outside-hours');
-    }
     block.setAttribute('data-level', isActive ? level : 'none');
     block.setAttribute('role', 'listitem');
     block.setAttribute('aria-label', `${formatHour(t)}: UVI ${uvi > 0 ? uvi.toFixed(1) : '–'}`);
@@ -819,467 +734,26 @@ function hideStaleWarning() {
 }
 
 /* ============================================================
-   SCHOOL HOURS UTILITY
+   RESET
    ============================================================ */
-
-/**
- * Returns true if the given ISO hour string ("2026-03-20T14:00") falls
- * within the school's configured operating hours and open days.
- * The ISO string comes from Open-Meteo which returns NZ local time,
- * so the date part is already the correct NZ calendar date.
- */
-function isWithinSchoolHours(isoHourString, prefs) {
-  const p = prefs || DEFAULT_SCHOOL_PREFS;
-
-  const hour    = parseInt(isoHourString.split('T')[1].split(':')[0], 10);
-  const [y,m,d] = isoHourString.split('T')[0].split('-').map(Number);
-
-  // Use UTC noon to get the correct day-of-week for the NZ local date
-  // without any DST boundary issues
-  const dayOfWeek = new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay(); // 0=Sun … 6=Sat
-
-  const openDays = Array.isArray(p.open_days) ? p.open_days : [1, 2, 3, 4, 5];
-  if (!openDays.includes(dayOfWeek)) return false;
-
-  const [openH,  openM]  = (p.open_time  || '08:30').split(':').map(Number);
-  const [closeH, closeM] = (p.close_time || '15:00').split(':').map(Number);
-
-  const blockStart = hour * 60;
-  return blockStart >= (openH * 60 + openM) && blockStart < (closeH * 60 + closeM);
-}
-
-/* ============================================================
-   AUTH HELPERS
-   ============================================================ */
-
-function isGuest()     { return localStorage.getItem('sunsmart_guest') === 'true'; }
-function setGuestMode(){ localStorage.setItem('sunsmart_guest', 'true'); }
-function clearGuestMode(){ try { localStorage.removeItem('sunsmart_guest'); } catch { /* ignore */ } }
-
-function showAuthModal() {
-  document.getElementById('auth-modal').classList.remove('hidden');
-  document.getElementById('location-selector').classList.add('hidden');
-  document.getElementById('app').classList.add('hidden');
-}
-function hideAuthModal() {
-  document.getElementById('auth-modal').classList.add('hidden');
-}
-
-function showSyncDot(syncing) {
-  const dot = document.getElementById('sync-dot');
-  if (!dot) return;
-  if (syncing) {
-    dot.className = 'sync-dot';
-    dot.classList.remove('hidden');
-  } else {
-    dot.className = 'sync-dot sync-dot--saved';
-    setTimeout(() => dot.classList.add('hidden'), 1500);
-  }
-}
-
-async function signInWithGoogle() {
-  if (!supabaseClient) return;
-  try {
-    await supabaseClient.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin },
-    });
-    // Browser redirects to Google — no further action needed
-  } catch (e) {
-    console.error('Google sign-in error:', e);
-  }
-}
-
-async function signOut() {
-  if (!supabaseClient) return;
-  hideSettingsPanel();
-  await supabaseClient.auth.signOut();
-  // SIGNED_OUT event in onAuthStateChange handles the UI transition
-}
-
-/* ============================================================
-   PREFERENCES — load / save / apply / migrate
-   ============================================================ */
-
-async function loadPreferences(userId) {
-  if (!supabaseClient || !userId) return null;
-  try {
-    const { data, error } = await supabaseClient
-      .from('school_preferences')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = row not found
-    return data || null;
-  } catch (e) {
-    console.warn('Could not load preferences:', e);
-    return null;
-  }
-}
-
-let _savePrefsTimer = null;
-
-async function savePreferences(prefs) {
-  // Guests: persist to localStorage only
-  if (!supabaseClient || !appState.user) {
-    saveState('sunsmart_prefs', prefs);
-    return;
-  }
-  // Authenticated: debounced upsert to Supabase
-  clearTimeout(_savePrefsTimer);
-  showSyncDot(true);
-  _savePrefsTimer = setTimeout(async () => {
-    try {
-      const { error } = await supabaseClient
-        .from('school_preferences')
-        .upsert({ ...prefs, user_id: appState.user.id }, { onConflict: 'user_id' });
-      if (error) throw error;
-      showSyncDot(false);
-    } catch (e) {
-      console.warn('Could not save preferences:', e);
-      showSyncDot(false);
-    }
-  }, 500);
-}
-
-async function migrateGuestToAccount(userId) {
-  // DB row already exists (logged in on another device) — DB wins
-  const existing = await loadPreferences(userId);
-  if (existing) {
-    applyPreferences(existing);
-    return;
-  }
-  // First time login — seed DB from any localStorage guest data
-  const localPrefs   = JSON.parse(localStorage.getItem('sunsmart_prefs')    || 'null');
-  const localLoc     = JSON.parse(localStorage.getItem('sunsmart_location') || 'null');
-  const localPolicy  = localStorage.getItem('sunsmart_policy');
-
-  const migrated = { ...DEFAULT_SCHOOL_PREFS, ...(localPrefs || {}), user_id: userId };
-  if (localLoc)    { migrated.lat = localLoc.lat; migrated.long = localLoc.long; migrated.location_label = localLoc.label; }
-  if (localPolicy) { migrated.policy_type = localPolicy; }
-
-  applyPreferences(migrated);
-  try {
-    if (supabaseClient) {
-      await supabaseClient
-        .from('school_preferences')
-        .upsert(migrated, { onConflict: 'user_id' });
-    }
-  } catch (e) {
-    console.warn('Migration upsert failed:', e);
-  }
-}
-
-function applyPreferences(prefs) {
-  if (!prefs) return;
-  appState.schoolPrefs = {
-    ...DEFAULT_SCHOOL_PREFS,
-    ...prefs,
-    open_days: Array.isArray(prefs.open_days) ? prefs.open_days : [1, 2, 3, 4, 5],
-  };
-  // Keep localStorage in sync so UV fetching always has a location
-  if (prefs.lat && prefs.long && prefs.location_label) {
-    saveState('sunsmart_location', { lat: prefs.lat, long: prefs.long, label: prefs.location_label });
-  }
-  if (prefs.policy_type) {
-    saveState('sunsmart_policy', prefs.policy_type);
-    document.querySelectorAll('.pill').forEach(p => {
-      p.classList.toggle('active', p.dataset.policy === prefs.policy_type);
-    });
-  }
-}
-
-function updateUserUI(user) {
-  appState.user = user;
-  const avatarEl         = document.getElementById('profile-avatar');
-  const iconEl           = document.getElementById('profile-icon');
-  const settingsAvatarEl = document.getElementById('settings-avatar');
-  const nameEl           = document.getElementById('settings-user-name');
-  const emailEl          = document.getElementById('settings-user-email');
-  const userInfoRow      = document.getElementById('user-info-row');
-
-  if (user) {
-    const meta = user.user_metadata || {};
-    if (meta.avatar_url) {
-      avatarEl.src = meta.avatar_url;
-      avatarEl.classList.remove('hidden');
-      iconEl.classList.add('hidden');
-      if (settingsAvatarEl) { settingsAvatarEl.src = meta.avatar_url; settingsAvatarEl.classList.remove('hidden'); }
-    }
-    if (nameEl)  nameEl.textContent  = meta.full_name || 'Signed in';
-    if (emailEl) emailEl.textContent = user.email || '';
-    if (userInfoRow) userInfoRow.classList.remove('hidden');
-    document.getElementById('guest-banner')?.classList.add('hidden');
-  } else {
-    avatarEl.src = '';
-    avatarEl.classList.add('hidden');
-    iconEl.classList.remove('hidden');
-    if (settingsAvatarEl) settingsAvatarEl.classList.add('hidden');
-    if (userInfoRow) userInfoRow.classList.add('hidden');
-  }
-}
-
-/* ============================================================
-   AUTH INITIALISATION
-   ============================================================ */
-
-function hideAuthLoading() {
-  document.getElementById('auth-loading')?.classList.add('hidden');
-}
-
-async function initAuth() {
-  // Wire auth modal buttons
-  document.getElementById('google-signin-btn').addEventListener('click', signInWithGoogle);
-  document.getElementById('guest-btn').addEventListener('click', () => {
-    setGuestMode();
-    hideAuthLoading();
-    hideAuthModal();
-    document.getElementById('guest-banner')?.classList.remove('hidden');
-    bootApp();
-  });
-  document.getElementById('guest-banner-signin-btn')?.addEventListener('click', signInWithGoogle);
-
-  if (!supabaseClient) {
-    hideAuthLoading();
-    if (!isGuest()) setGuestMode();
-    document.getElementById('guest-banner')?.classList.remove('hidden');
-    await bootApp();
-    return;
-  }
-
-  // onAuthStateChange handles only FUTURE transitions after initial load:
-  //   SIGNED_IN      — fresh OAuth redirect returning to the app
-  //   TOKEN_REFRESHED — silent token refresh; keep user object current
-  //   SIGNED_OUT     — explicit sign-out or server-side session revocation
-  //
-  // Initial page-load restore is handled exclusively by getSession() below,
-  // which waits for any in-flight token refresh before resolving — giving a
-  // definitive answer with no race conditions.
-  supabaseClient.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session?.user && !_bootCompleted) {
-      hideAuthLoading();
-      hideAuthModal();
-      clearGuestMode();
-      updateUserUI(session.user);
-      // Boot immediately — don't block on DB sync
-      await bootApp();
-      // Sync preferences from DB in background; re-render if anything changed
-      migrateGuestToAccount(session.user.id)
-        .then(() => {
-          const state = loadState();
-          const cache = loadCachedUV();
-          if (state.location && cache?.data) renderAll(cache.data, state.location);
-        })
-        .catch(e => console.warn('Background DB sync failed:', e));
-    } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-      updateUserUI(session.user);
-      // Silently upgrade if we previously booted as guest (e.g. getSession timed out)
-      if (isGuest()) {
-        clearGuestMode();
-        document.getElementById('guest-banner')?.classList.add('hidden');
-        migrateGuestToAccount(session.user.id)
-          .then(() => {
-            const state = loadState();
-            const cache = loadCachedUV();
-            if (state.location && cache?.data) renderAll(cache.data, state.location);
-          })
-          .catch(e => console.warn('Silent upgrade sync failed:', e));
-      }
-    } else if (event === 'SIGNED_OUT') {
-      // Keep local state (location, policy, prefs) — just drop back to guest mode
-      _bootCompleted = false;
-      appState.user  = null;
-      hideAuthLoading();
-      setGuestMode();
-      document.getElementById('guest-banner')?.classList.remove('hidden');
-      await bootApp();
-    }
-  });
-
-  // getSession() is the authoritative initial session check.
-  // A 10-second timeout prevents the app from hanging indefinitely when the
-  // token-refresh network call stalls (e.g. firewall, Supabase slow, offline).
-  let _session = null;
-  try {
-    const result = await Promise.race([
-      supabaseClient.auth.getSession(),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('getSession timeout')), 10_000)
-      ),
-    ]);
-    _session = result.data?.session ?? null;
-  } catch (e) {
-    if (!e.message?.includes('timeout')) console.error('getSession() failed:', e);
-    // _session stays null — fall through to show auth modal
-  }
-
-  if (_bootCompleted) return; // onAuthStateChange SIGNED_IN already handled this
-
-  hideAuthLoading();
-
-  if (_session?.user) {
-    hideAuthModal();
-    clearGuestMode();
-    updateUserUI(_session.user);
-    // Boot immediately with local state — don't block on DB
-    await bootApp();
-    // Sync preferences from DB in background; re-render if anything changed
-    migrateGuestToAccount(_session.user.id)
-      .then(() => {
-        const state = loadState();
-        const cache = loadCachedUV();
-        if (state.location && cache?.data) renderAll(cache.data, state.location);
-      })
-      .catch(e => console.warn('Background DB sync failed:', e));
-  } else if (isGuest()) {
-    const localPrefs = JSON.parse(localStorage.getItem('sunsmart_prefs') || 'null');
-    if (localPrefs) applyPreferences(localPrefs);
-    document.getElementById('guest-banner')?.classList.remove('hidden');
-    await bootApp();
-  } else {
-    // No session, not a returning guest — auto-continue as guest
-    setGuestMode();
-    document.getElementById('guest-banner')?.classList.remove('hidden');
-    await bootApp();
-  }
-}
-
-/* ============================================================
-   SETTINGS PANEL
-   ============================================================ */
-
-function showSettingsPanel() {
-  const prefs = appState.schoolPrefs;
-  const state = loadState();
-
-  document.getElementById('school-name-input').value  = prefs.school_name || '';
-  document.getElementById('settings-location-label').textContent =
-    prefs.location_label || state.location?.label || 'Not set';
-  document.getElementById('open-time').value  = prefs.open_time  || '08:30';
-  document.getElementById('close-time').value = prefs.close_time || '15:00';
-
-  const openDays = prefs.open_days || [1, 2, 3, 4, 5];
-  document.querySelectorAll('.day-checkbox input').forEach(cb => {
-    cb.checked = openDays.includes(parseInt(cb.dataset.day, 10));
-  });
-
-  const currentPolicy = prefs.policy_type || state.policy;
-  document.querySelectorAll('.settings-pill').forEach(p => {
-    p.classList.toggle('active', p.dataset.policy === currentPolicy);
-  });
-
-  document.getElementById('settings-save-status').classList.add('hidden');
-  document.getElementById('settings-panel').classList.remove('hidden');
-}
-
-function hideSettingsPanel() {
-  document.getElementById('settings-panel').classList.add('hidden');
-}
-
-function initSettingsPanel() {
-  document.getElementById('settings-close-btn').addEventListener('click', hideSettingsPanel);
-  document.getElementById('settings-backdrop').addEventListener('click', hideSettingsPanel);
-  document.getElementById('profile-btn').addEventListener('click', showSettingsPanel);
-  document.getElementById('edit-hours-btn').addEventListener('click', showSettingsPanel);
-  document.getElementById('signout-btn').addEventListener('click', signOut);
-
-  // Change location from within settings
-  document.getElementById('settings-change-location-btn').addEventListener('click', () => {
-    hideSettingsPanel();
-    clearState('sunsmart_location');
-    clearState('sunsmart_uv_cache');
-    showLocationSelector();
-  });
-
-  // Settings policy pills — mirror to main pills
-  document.querySelectorAll('.settings-pill').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.settings-pill').forEach(p => p.classList.remove('active'));
-      btn.classList.add('active');
-      document.querySelectorAll('.pill:not(.settings-pill)').forEach(p => {
-        p.classList.toggle('active', p.dataset.policy === btn.dataset.policy);
-      });
-    });
-  });
-
-  // Reset all local settings
-  document.getElementById('reset-btn').addEventListener('click', async () => {
-    if (!confirm('Reset your location, school hours, and policy selection?')) return;
-
-    // Clear localStorage
+function initResetBtn() {
+  document.getElementById('reset-btn').addEventListener('click', () => {
+    if (!confirm('Reset your location and policy selection?')) return;
     clearState('sunsmart_location');
     clearState('sunsmart_policy');
     clearState('sunsmart_uv_cache');
-    clearState('sunsmart_prefs');
-
-    // Clear Supabase row for authenticated users
-    if (supabaseClient && appState.user) {
-      try {
-        await supabaseClient
-          .from('school_preferences')
-          .delete()
-          .eq('user_id', appState.user.id);
-      } catch (e) { console.warn('Could not clear remote preferences:', e); }
-    }
-
-    // Reset in-memory state
-    appState.schoolPrefs = { ...DEFAULT_SCHOOL_PREFS };
-    _bootCompleted = false;
-
-    // Abort any in-flight UV fetch and go back to location selector
     if (currentFetchController) currentFetchController.abort();
     showLocationSelector();
   });
-
-  // Save
-  document.getElementById('settings-save-btn').addEventListener('click', async () => {
-    const state      = loadState();
-    const policyType = document.querySelector('.settings-pill.active')?.dataset.policy
-                    || appState.schoolPrefs.policy_type;
-    const activeDays = Array.from(document.querySelectorAll('.day-checkbox input'))
-      .filter(cb => cb.checked).map(cb => parseInt(cb.dataset.day, 10));
-
-    const updated = {
-      ...appState.schoolPrefs,
-      school_name:    document.getElementById('school-name-input').value.trim(),
-      open_time:      document.getElementById('open-time').value  || '08:30',
-      close_time:     document.getElementById('close-time').value || '15:00',
-      open_days:      activeDays,
-      policy_type:    policyType || null,
-      location_label: state.location?.label || appState.schoolPrefs.location_label,
-      lat:            state.location?.lat   || appState.schoolPrefs.lat,
-      long:           state.location?.long  || appState.schoolPrefs.long,
-    };
-
-    appState.schoolPrefs = updated;
-    if (policyType) saveState('sunsmart_policy', policyType);
-    await savePreferences(updated);
-
-    // Update main pills to reflect settings change
-    if (policyType) {
-      document.querySelectorAll('.pill:not(.settings-pill)').forEach(p => {
-        p.classList.toggle('active', p.dataset.policy === policyType);
-      });
-    }
-
-    // Re-render timeline and checklist with new school hours
-    const cache = loadCachedUV();
-    if (cache?.data && state.location) renderAll(cache.data, state.location);
-
-    const statusEl = document.getElementById('settings-save-status');
-    statusEl.textContent = '✓ Settings saved';
-    statusEl.className = 'settings-save-status settings-save-status--success';
-    statusEl.classList.remove('hidden');
-    setTimeout(() => { statusEl.classList.add('hidden'); hideSettingsPanel(); }, 1500);
-  });
 }
+
 
 /* ============================================================
    BOOT
    ============================================================ */
 function renderAll(hourlyData, location) {
   const state      = loadState();
-  const policyType = appState.schoolPrefs.policy_type || state.policy;
+  const policyType = state.policy;
   renderUVCard(hourlyData, location, policyType);
   renderChart(hourlyData);
   renderDataTable(hourlyData);
@@ -1337,11 +811,8 @@ async function loadAndRenderUV(location) {
 }
 
 async function bootApp() {
-  if (_bootCompleted) return;
-  _bootCompleted = true;
-
   const state      = loadState();
-  const policyType = appState.schoolPrefs.policy_type || state.policy;
+  const policyType = state.policy;
 
   // Restore policy pill active state
   if (policyType) {
@@ -1373,20 +844,17 @@ async function init() {
 
     initLocationSelector();
     initPolicyPills();
-    initSettingsPanel();
+    initResetBtn();
 
     document.getElementById('change-location-btn').addEventListener('click', () => {
       if (currentFetchController) currentFetchController.abort();
       clearState('sunsmart_location');
       clearState('sunsmart_uv_cache');
-      appState.schoolPrefs.lat            = null;
-      appState.schoolPrefs.long           = null;
-      appState.schoolPrefs.location_label = null;
       showLocationSelector();
     });
   }
 
-  await initAuth();
+  await bootApp();
 }
 
 document.addEventListener('DOMContentLoaded', init);
