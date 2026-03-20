@@ -88,6 +88,10 @@
           <p id="uv-peak" class="uv-card__meta-line"></p>
           <p id="uv-window" class="uv-card__meta-line"></p>
           <p id="uv-window-note" class="uv-card__meta-note hidden">Protection may be required during this window</p>
+          <p id="school-hours-display" class="uv-card__meta-line school-hours-display hidden">
+            <span id="school-hours-text"></span>
+            <button id="edit-hours-btn" class="school-hours-edit" type="button" aria-label="Edit school hours">✎ edit hours</button>
+          </p>
         </div>
       </div>
       <p id="uv-stale-warning" class="stale-warning hidden" aria-live="polite"></p>
@@ -136,7 +140,7 @@
 
       <!-- Timeline -->
       <details id="timeline-details" class="timeline-details hidden">
-        <summary class="timeline-toggle">Plan your day ▾</summary>
+        <summary class="timeline-toggle"><span id="timeline-toggle-label">Plan your day</span> ▾</summary>
         <div id="timeline" class="timeline" role="list" aria-label="Hourly SunSmart timeline"></div>
         <div id="hour-detail" class="hour-detail hidden" aria-live="polite"></div>
       </details>

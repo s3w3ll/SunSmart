@@ -102,6 +102,29 @@ function getActions(policyType, uviAtHour) {
 /* ============================================================
    UV DATA UTILITIES
    ============================================================ */
+/**
+ * Returns the chart/timeline hour window for the configured school hours.
+ * Start is floored to the whole hour (8:30 → 8).
+ * End is ceiled to the next whole hour only if not already on the hour (3:30 → 4, 3:00 → 3).
+ */
+function getSchoolHourRange(prefs) {
+  const p = prefs || DEFAULT_SCHOOL_PREFS;
+  const [openH, openM]   = (p.open_time  || '08:30').split(':').map(Number);
+  const [closeH, closeM] = (p.close_time || '15:00').split(':').map(Number);
+  return {
+    start: openH,
+    end:   closeM > 0 ? closeH + 1 : closeH,
+  };
+}
+
+/** Formats a "HH:MM" time string to "8:30am" / "3pm" style. */
+function formatTimeStr(hhmm) {
+  const [h, m] = (hhmm || '00:00').split(':').map(Number);
+  const period = h < 12 ? 'am' : 'pm';
+  const hour   = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return m > 0 ? `${hour}:${String(m).padStart(2, '0')}${period}` : `${hour}${period}`;
+}
+
 function getNZLocalDate(timestamp) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Pacific/Auckland',
@@ -440,6 +463,16 @@ function renderUVCard(hourlyData, location) {
     windowNote.classList.add('hidden');
   }
 
+  // School hours display
+  const schoolHoursEl     = document.getElementById('school-hours-display');
+  const schoolHoursTextEl = document.getElementById('school-hours-text');
+  if (schoolHoursEl && schoolHoursTextEl) {
+    const p = appState.schoolPrefs;
+    schoolHoursTextEl.textContent =
+      `🏫 School hours: ${formatTimeStr(p.open_time || '08:30')} – ${formatTimeStr(p.close_time || '15:00')}`;
+    schoolHoursEl.classList.remove('hidden');
+  }
+
   // End-of-day check
   const nowParts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Pacific/Auckland', hour: '2-digit', hour12: false,
@@ -454,11 +487,12 @@ function renderUVCard(hourlyData, location) {
 let chartInstance = null;
 
 function renderChart(hourlyData) {
+  const { start: chartStart, end: chartEnd } = getSchoolHourRange(appState.schoolPrefs);
   const chartData = hourlyData.time
     .map((t, i) => ({ t, v: hourlyData.uv_index[i] }))
     .filter(({ t }) => {
       const hour = parseInt(t.split('T')[1].split(':')[0], 10);
-      return hour >= CHART_START_HOUR && hour <= CHART_END_HOUR;
+      return hour >= chartStart && hour <= chartEnd;
     });
 
   const labels = chartData.map(d => formatHour(d.t));
@@ -675,6 +709,15 @@ function renderTimeline(policyType, hourlyData) {
   const reapplyISOStrings  = (sunscreenTiming?.reapplyTimes || [])
     .map(d => d.toISOString().slice(0, 16));
 
+  const { start: tlStart, end: tlEnd } = getSchoolHourRange(appState.schoolPrefs);
+
+  // Update the toggle label to show the school hours window
+  const toggleLabelEl = document.getElementById('timeline-toggle-label');
+  if (toggleLabelEl) {
+    const fmtH = h => h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h - 12}pm`;
+    toggleLabelEl.textContent = `Plan your day (${fmtH(tlStart)}–${fmtH(tlEnd)})`;
+  }
+
   const timelineEl   = document.getElementById('timeline');
   const hourDetailEl = document.getElementById('hour-detail');
   timelineEl.innerHTML = '';
@@ -682,7 +725,7 @@ function renderTimeline(policyType, hourlyData) {
 
   hourlyData.time.forEach((t, i) => {
     const hour = parseInt(t.split('T')[1].split(':')[0], 10);
-    if (hour < CHART_START_HOUR || hour > CHART_END_HOUR) return;
+    if (hour < tlStart || hour > tlEnd) return;
 
     const uvi       = hourlyData.uv_index[i] ?? 0;
     const level     = getUVLevel(uvi);
@@ -1060,6 +1103,7 @@ function initSettingsPanel() {
   document.getElementById('settings-close-btn').addEventListener('click', hideSettingsPanel);
   document.getElementById('settings-backdrop').addEventListener('click', hideSettingsPanel);
   document.getElementById('profile-btn').addEventListener('click', showSettingsPanel);
+  document.getElementById('edit-hours-btn').addEventListener('click', showSettingsPanel);
   document.getElementById('signout-btn').addEventListener('click', signOut);
 
   // Change location from within settings
