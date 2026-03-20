@@ -81,6 +81,24 @@ function getNZLocalDate(timestamp) {
   }).format(new Date(timestamp));
 }
 
+/**
+ * Converts a Date object back to a NZ local time string in the same
+ * "YYYY-MM-DDTHH:MM" format that Open-Meteo uses. Always use this
+ * instead of .toISOString() when the result will be passed to formatHour()
+ * or compared against Open-Meteo timestamps — toISOString() is always
+ * UTC, which is 12–13 hours off from NZ local time.
+ */
+function nzISOString(date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Pacific/Auckland',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(date);
+  const get = type => parts.find(p => p.type === type).value;
+  const h = get('hour') === '24' ? '00' : get('hour');
+  return `${get('year')}-${get('month')}-${get('day')}T${h}:${get('minute')}`;
+}
+
 function getNZHourString() {
   // Returns "YYYY-MM-DDTHH:00" matching Open-Meteo timestamp format, in NZ local time
   const now = new Date();
@@ -603,7 +621,7 @@ function renderChecklist(policyType, hourlyData) {
   if (sunscreenTiming && !actions.active) {
     const firstActiveTime = sunscreenTiming.reapplyTimes[0];
     if (firstActiveTime && now >= sunscreenTiming.applyBy && now < firstActiveTime) {
-      const startLabel = formatHour(firstActiveTime.toISOString().slice(0, 16));
+      const startLabel = formatHour(nzISOString(firstActiveTime));
       sunscreenPromptEl.textContent = `🧴 Apply sunscreen now — UVI 3 or above starts at ${startLabel}`;
       sunscreenPromptEl.classList.remove('hidden');
     }
@@ -629,7 +647,7 @@ function renderChecklist(policyType, hourlyData) {
 function renderTimeline(policyType, hourlyData) {
   const sunscreenTiming    = getSunscreenTiming(hourlyData);
   const reapplyISOStrings  = (sunscreenTiming?.reapplyTimes || [])
-    .map(d => d.toISOString().slice(0, 16));
+    .map(d => nzISOString(d));
 
   const { start: tlStart, end: tlEnd } = getSchoolHourRange();
 
