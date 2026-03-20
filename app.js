@@ -540,19 +540,6 @@ function renderChart(hourlyData) {
   });
 }
 
-function renderDataTable(hourlyData) {
-  const tbody = document.getElementById('uv-table-body');
-  tbody.innerHTML = '';
-  hourlyData.time.forEach((t, i) => {
-    const hour = parseInt(t.split('T')[1].split(':')[0], 10);
-    if (hour < CHART_START_HOUR || hour > CHART_END_HOUR) return;
-    const uvi = hourlyData.uv_index[i];
-    const tr = document.createElement('tr');
-    if (meetsThreshold(uvi)) tr.classList.add('active');
-    tr.innerHTML = `<td>${formatHour(t)}</td><td>${uvi !== null && uvi !== undefined ? uvi.toFixed(1) : '–'}</td>`;
-    tbody.appendChild(tr);
-  });
-}
 
 /* ============================================================
    RENDERING — Policy Action Panel
@@ -756,7 +743,6 @@ function renderAll(hourlyData, location) {
   const policyType = state.policy;
   renderUVCard(hourlyData, location, policyType);
   renderChart(hourlyData);
-  renderDataTable(hourlyData);
   renderPolicyPanel(policyType, hourlyData);
   hideAPIError();
 }
