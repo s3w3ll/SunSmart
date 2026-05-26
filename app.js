@@ -897,7 +897,7 @@ async function subscribeToPush(location) {
     userVisibleOnly: true,
     applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
   });
-  await fetch(`${WORKER_URL}/subscribe`, {
+  const res = await fetch(`${WORKER_URL}/subscribe`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -905,6 +905,10 @@ async function subscribeToPush(location) {
     },
     body: JSON.stringify({ subscription: subscription.toJSON(), location }),
   });
+  if (!res.ok) {
+    await subscription.unsubscribe();
+    throw new Error(`Subscribe failed: ${res.status}`);
+  }
   localStorage.setItem('sunsmart_push_subscribed', 'true');
 }
 
@@ -929,6 +933,18 @@ async function unsubscribeFromPush() {
 function initNotifications() {
   const btn = document.getElementById('notify-btn');
   const denied = document.getElementById('notify-denied');
+
+  // iOS Safari only supports Web Push inside a PWA (added to home screen)
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  if (isIOS && !isStandalone) {
+    if (btn) {
+      btn.textContent = '📲 Add to home screen for UV alerts';
+      btn.disabled = true;
+    }
+    return;
+  }
+
   if (!btn || !('serviceWorker' in navigator) || !('PushManager' in window)) {
     if (btn) btn.style.display = 'none';
     return;
@@ -970,10 +986,16 @@ function initNotifications() {
       return;
     }
 
-    await subscribeToPush(location);
-    updateNotifyButton(btn, true);
-    denied.classList.add('hidden');
-    showNotifyToast('You\'ll be notified when UV hits 3 ☀️');
+    try {
+      await subscribeToPush(location);
+      updateNotifyButton(btn, true);
+      denied.classList.add('hidden');
+      showNotifyToast('You\'ll be notified when UV hits 3 ☀️');
+    } catch (err) {
+      console.error('Push subscribe error:', err);
+      updateNotifyButton(btn, false);
+      showNotifyToast('Could not enable alerts — please try again');
+    }
     btn.disabled = false;
   });
 }
