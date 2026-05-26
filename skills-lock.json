@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "skills": {
+    "cco": {
+      "source": "egorfedorov/claude-context-optimizer",
+      "sourceType": "github",
+      "computedHash": "c94c92f9b26e2a435a0dd313f9860972bb855e941259cc07de4ad246cc6c8739"
+    },
+    "cco-budget": {
+      "source": "egorfedorov/claude-context-optimizer",
+      "sourceType": "github",
+      "computedHash": "12bfdeeb5c9bb2c2a7f5a394ce6d888ea2e0e44e440b7cb3d02ed292bae40b99"
+    },
+    "cco-export": {
+      "source": "egorfedorov/claude-context-optimizer",
+      "sourceType": "github",
+      "computedHash": "798ad021540b8e1a80d250edcfabaecc59e6155882eecc31a09e89db0811c4b4"
+    },
+    "cco-git": {
+      "source": "egorfedorov/claude-context-optimizer",
+      "sourceType": "github",
+      "computedHash": "246a1f181b498f32fc9f8f692a35d9e51ae4541392691565926a345a1f6c2793"
+    },
+    "cco-report": {
+      "source": "egorfedorov/claude-context-optimizer",
+      "sourceType": "github",
+      "computedHash": "fe385173a9c8e096b49d695d7895a6442eb6178cde7b1247ef1fcf6006886bef"
+    },
+    "cco-templates": {
+      "source": "egorfedorov/claude-context-optimizer",
+      "sourceType": "github",
+      "computedHash": "1778d9e987fd22953d43cb2f829bde22380e66f36ca41b312ff8034a2a3ef3c8"
+    },
+    "smart-loader": {
+      "source": "egorfedorov/claude-context-optimizer",
+      "sourceType": "github",
+      "computedHash": "90603cc3a1057766b95b6c0c58f4adca6274500e20c98f71fc41457cadfb401b"
+    }
+  }
+}
