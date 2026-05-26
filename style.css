@@ -701,3 +701,32 @@ ul { list-style: none; }
   color: var(--colour-text-secondary);
   margin-bottom: 4px;
 }
+
+/* ── Push notification toggle ──────────────────────────────── */
+.notify-row {
+  padding: 0.5rem 1rem 0.75rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.notify-btn {
+  font-size: 0.8rem;
+  color: var(--colour-text-secondary, #666);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.notify-btn:hover {
+  color: var(--colour-text, #333);
+}
+
+.notify-denied {
+  font-size: 0.75rem;
+  color: #c0392b;
+  margin: 0.25rem 0 0;
+}
+
+.notify-denied a {
+  color: inherit;
+}
