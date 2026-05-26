@@ -1,11 +1,10 @@
 name = "uv-notifier"
 main = "index.js"
 compatibility_date = "2024-01-01"
-account_id = "YOUR_ACCOUNT_ID"
 
 [[kv_namespaces]]
-binding = "SUBSCRIPTIONS"
-id = "PLACEHOLDER_REPLACE_AFTER_KV_CREATE"
+binding = "sunsmart_subscriptions"
+id = "46571c253dc84c999343751ea8f70ebb"
 
 [triggers]
 crons = ["*/10 * * * *", "0 0 * * *"]

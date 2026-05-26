@@ -11,9 +11,9 @@ const SUNSCREEN_REAPPLY_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 let _listenersInitialized = false;  // prevents duplicate listeners on bfcache restore
 
-const VAPID_PUBLIC_KEY = 'YOUR_VAPID_PUBLIC_KEY';
-const WORKER_URL = 'https://YOUR_WORKER_URL';
-const SUBSCRIBE_SECRET = 'YOUR_SUBSCRIBE_SECRET';
+const VAPID_PUBLIC_KEY = 'BNxqEy6yjm0zcYMGLe6mbtiYBY6XmEY6vkhTXXkeMH6p0vudisTcT-asNwnO0LfP2EnSXUs94NVCJ_SZjdf9pa8';
+const WORKER_URL = 'https://uv-notifier.forgesync.workers.dev';
+const SUBSCRIBE_SECRET = 'b50ea96b537b2ed3b33e169c0a206730';
 
 /* ============================================================
    POLICY DATA
