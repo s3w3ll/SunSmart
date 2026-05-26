@@ -1,0 +1,11 @@
+name = "uv-notifier"
+main = "index.js"
+compatibility_date = "2024-01-01"
+account_id = "YOUR_ACCOUNT_ID"
+
+[[kv_namespaces]]
+binding = "SUBSCRIPTIONS"
+id = "PLACEHOLDER_REPLACE_AFTER_KV_CREATE"
+
+[triggers]
+crons = ["*/10 * * * *", "0 0 * * *"]
