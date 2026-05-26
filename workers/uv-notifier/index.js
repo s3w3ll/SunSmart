@@ -2,8 +2,12 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204, headers: corsHeaders() });
+    }
+
     if (!authorised(request, env)) {
-      return new Response('Forbidden', { status: 403 });
+      return new Response('Forbidden', { status: 403, headers: corsHeaders() });
     }
 
     if (request.method === 'POST' && url.pathname === '/subscribe') {
@@ -12,7 +16,7 @@ export default {
     if (request.method === 'DELETE' && url.pathname === '/unsubscribe') {
       return handleUnsubscribe(request, env);
     }
-    return new Response('Not found', { status: 404 });
+    return new Response('Not found', { status: 404, headers: corsHeaders() });
   },
 
   async scheduled(event, env) {
@@ -23,6 +27,16 @@ export default {
     }
   },
 };
+
+// ── CORS ──────────────────────────────────────────────────────────────────────
+
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Subscribe-Secret',
+  };
+}
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
@@ -35,20 +49,20 @@ function authorised(request, env) {
 async function handleSubscribe(request, env) {
   const { subscription, location } = await request.json();
   if (!subscription?.endpoint || !location?.lat || !location?.long) {
-    return new Response('Bad request', { status: 400 });
+    return new Response('Bad request', { status: 400, headers: corsHeaders() });
   }
   const key = await endpointKey(subscription.endpoint);
   const entry = { pushSubscription: subscription, location, lastUV: 0, lastNotifiedAt: null };
   await env.sunsmart_subscriptions.put(key, JSON.stringify(entry));
-  return new Response('OK', { status: 200 });
+  return new Response('OK', { status: 200, headers: corsHeaders() });
 }
 
 async function handleUnsubscribe(request, env) {
   const { endpoint } = await request.json();
-  if (!endpoint) return new Response('Bad request', { status: 400 });
+  if (!endpoint) return new Response('Bad request', { status: 400, headers: corsHeaders() });
   const key = await endpointKey(endpoint);
   await env.sunsmart_subscriptions.delete(key);
-  return new Response('OK', { status: 200 });
+  return new Response('OK', { status: 200, headers: corsHeaders() });
 }
 
 // ── Cron: UV check ────────────────────────────────────────────────────────────
