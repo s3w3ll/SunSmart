@@ -11,6 +11,10 @@ const SUNSCREEN_REAPPLY_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
 
 let _listenersInitialized = false;  // prevents duplicate listeners on bfcache restore
 
+const VAPID_PUBLIC_KEY = 'YOUR_VAPID_PUBLIC_KEY';
+const WORKER_URL = 'https://YOUR_WORKER_URL';
+const SUBSCRIBE_SECRET = 'YOUR_SUBSCRIBE_SECRET';
+
 /* ============================================================
    POLICY DATA
    ============================================================ */
@@ -310,6 +314,7 @@ function showLocationSelector() {
 function hideLocationSelector() {
   document.getElementById('location-selector').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
+  initNotifications();
 }
 
 function initLocationSelector() {
@@ -736,6 +741,7 @@ function initResetBtn() {
     clearState('sunsmart_location');
     clearState('sunsmart_policy');
     clearState('sunsmart_uv_cache');
+    unsubscribeFromPush();
     if (currentFetchController) currentFetchController.abort();
     showLocationSelector();
   });
@@ -872,6 +878,97 @@ window.addEventListener('pageshow', (e) => {
     }
   }
 });
+
+/* ============================================================
+   PUSH NOTIFICATIONS
+   ============================================================ */
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+async function subscribeToPush(location) {
+  const reg = await navigator.serviceWorker.register('/sw.js');
+  await navigator.serviceWorker.ready;
+  const subscription = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+  });
+  await fetch(`${WORKER_URL}/subscribe`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Subscribe-Secret': SUBSCRIBE_SECRET,
+    },
+    body: JSON.stringify({ subscription: subscription.toJSON(), location }),
+  });
+  localStorage.setItem('sunsmart_push_subscribed', 'true');
+}
+
+async function unsubscribeFromPush() {
+  const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+  if (!reg) return;
+  const subscription = await reg.pushManager.getSubscription();
+  if (subscription) {
+    await fetch(`${WORKER_URL}/unsubscribe`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Subscribe-Secret': SUBSCRIBE_SECRET,
+      },
+      body: JSON.stringify({ endpoint: subscription.endpoint }),
+    });
+    await subscription.unsubscribe();
+  }
+  localStorage.removeItem('sunsmart_push_subscribed');
+}
+
+function initNotifications() {
+  const btn = document.getElementById('notify-btn');
+  const denied = document.getElementById('notify-denied');
+  if (!btn || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+    if (btn) btn.style.display = 'none';
+    return;
+  }
+
+  const isSubscribed = localStorage.getItem('sunsmart_push_subscribed') === 'true';
+  updateNotifyButton(btn, isSubscribed);
+
+  // Guard against re-adding listener if hideLocationSelector is called multiple times
+  if (btn._notifyListenerAttached) return;
+  btn._notifyListenerAttached = true;
+
+  btn.addEventListener('click', async () => {
+    const { location } = loadState();
+    if (!location) return;
+
+    if (localStorage.getItem('sunsmart_push_subscribed') === 'true') {
+      await unsubscribeFromPush();
+      updateNotifyButton(btn, false);
+      denied.classList.add('hidden');
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission === 'denied') {
+      denied.classList.remove('hidden');
+      return;
+    }
+    if (permission !== 'granted') return;
+
+    await subscribeToPush(location);
+    updateNotifyButton(btn, true);
+    denied.classList.add('hidden');
+  });
+}
+
+function updateNotifyButton(btn, subscribed) {
+  btn.textContent = subscribed ? '🔕 Turn off UV alerts' : '🔔 Notify me when UV hits 3';
+  btn.setAttribute('aria-pressed', String(subscribed));
+}
 
 /* ============================================================
    CONDITIONAL EXPORTS FOR NODE.JS TESTING
