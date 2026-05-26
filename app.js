@@ -945,29 +945,57 @@ function initNotifications() {
     const { location } = loadState();
     if (!location) return;
 
+    btn.disabled = true;
+    btn.textContent = '⏳ Working…';
+
     if (localStorage.getItem('sunsmart_push_subscribed') === 'true') {
       await unsubscribeFromPush();
       updateNotifyButton(btn, false);
       denied.classList.add('hidden');
+      showNotifyToast('UV alerts turned off');
+      btn.disabled = false;
       return;
     }
 
     const permission = await Notification.requestPermission();
     if (permission === 'denied') {
       denied.classList.remove('hidden');
+      updateNotifyButton(btn, false);
+      btn.disabled = false;
       return;
     }
-    if (permission !== 'granted') return;
+    if (permission !== 'granted') {
+      updateNotifyButton(btn, false);
+      btn.disabled = false;
+      return;
+    }
 
     await subscribeToPush(location);
     updateNotifyButton(btn, true);
     denied.classList.add('hidden');
+    showNotifyToast('You\'ll be notified when UV hits 3 ☀️');
+    btn.disabled = false;
   });
 }
 
 function updateNotifyButton(btn, subscribed) {
   btn.textContent = subscribed ? '🔕 Turn off UV alerts' : '🔔 Notify me when UV hits 3';
   btn.setAttribute('aria-pressed', String(subscribed));
+}
+
+function showNotifyToast(message) {
+  const existing = document.getElementById('notify-toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('p');
+  toast.id = 'notify-toast';
+  toast.className = 'notify-toast';
+  toast.textContent = message;
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
+
+  document.getElementById('notify-btn').insertAdjacentElement('afterend', toast);
+  setTimeout(() => toast.remove(), 3500);
 }
 
 /* ============================================================

@@ -730,3 +730,17 @@ ul { list-style: none; }
 .notify-denied a {
   color: inherit;
 }
+
+.notify-toast {
+  font-size: 0.78rem;
+  color: #2e7d32;
+  margin: 0.25rem 0 0;
+  animation: fadeInOut 3.5s ease forwards;
+}
+
+@keyframes fadeInOut {
+  0%   { opacity: 0; transform: translateY(-4px); }
+  12%  { opacity: 1; transform: translateY(0); }
+  75%  { opacity: 1; }
+  100% { opacity: 0; }
+}
