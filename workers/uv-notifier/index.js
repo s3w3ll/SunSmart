@@ -53,17 +53,8 @@ async function handleSubscribe(request, env) {
   }
   const key = await endpointKey(subscription.endpoint);
   const entry = { pushSubscription: subscription, location, lastUV: 0, lastNotifiedAt: null };
-  console.log('[subscribe] key:', key, 'kv binding:', typeof env.sunsmart_subscriptions);
-  try {
-    await env.sunsmart_subscriptions.put(key, JSON.stringify(entry));
-    console.log('[subscribe] KV put OK');
-  } catch (err) {
-    console.error('[subscribe] KV put failed:', err.message);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders() });
-  }
-  const readback = await env.sunsmart_subscriptions.get(key);
-  console.log('[subscribe] readback:', readback ? 'found' : 'NOT FOUND');
-  return new Response(JSON.stringify({ ok: true, key, readback: readback ? 'found' : 'null' }), { status: 200, headers: { ...corsHeaders(), 'Content-Type': 'application/json' } });
+  await env.sunsmart_subscriptions.put(key, JSON.stringify(entry));
+  return new Response('OK', { status: 200, headers: corsHeaders() });
 }
 
 async function handleUnsubscribe(request, env) {
@@ -77,15 +68,7 @@ async function handleUnsubscribe(request, env) {
 // ── Cron: UV check ────────────────────────────────────────────────────────────
 
 async function checkAndNotify(env) {
-  const now = new Date();
-  console.log('[cron] checkAndNotify start, NZ time:', now.toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' }));
-  if (!isWithinNotifyWindow(now)) {
-    console.log('[cron] outside notify window, skipping');
-    return;
-  }
-
-  const list0 = await env.sunsmart_subscriptions.list({ limit: 1000 });
-  console.log('[cron] subscriptions in KV:', list0.keys.length);
+  if (!isWithinNotifyWindow(new Date())) return;
 
   let cursor;
   do {
@@ -98,13 +81,10 @@ async function checkAndNotify(env) {
       const entry = JSON.parse(raw);
 
       const currentUV = await fetchCurrentUV(entry.location.lat, entry.location.long);
-      console.log('[cron] location:', entry.location.label, 'lastUV:', entry.lastUV, 'currentUV:', currentUV);
       if (currentUV === null) return;
 
       if (shouldNotify(entry.lastUV, currentUV)) {
-        console.log('[cron] sending push to', entry.location.label, 'UV:', currentUV);
         const sent = await sendPush(entry.pushSubscription, entry.location.label, currentUV, env);
-        console.log('[cron] sendPush result:', sent);
         if (sent === 'gone') {
           await env.sunsmart_subscriptions.delete(name);
           return;
