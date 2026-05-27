@@ -53,7 +53,14 @@ async function handleSubscribe(request, env) {
   }
   const key = await endpointKey(subscription.endpoint);
   const entry = { pushSubscription: subscription, location, lastUV: 0, lastNotifiedAt: null };
-  await env.sunsmart_subscriptions.put(key, JSON.stringify(entry));
+  console.log('[subscribe] key:', key, 'kv binding:', typeof env.sunsmart_subscriptions);
+  try {
+    await env.sunsmart_subscriptions.put(key, JSON.stringify(entry));
+    console.log('[subscribe] KV put OK');
+  } catch (err) {
+    console.error('[subscribe] KV put failed:', err.message);
+    return new Response('KV error', { status: 500, headers: corsHeaders() });
+  }
   return new Response('OK', { status: 200, headers: corsHeaders() });
 }
 
