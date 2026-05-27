@@ -1,7 +1,7 @@
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-// .wrangler/tmp/bundle-iU9VjA/checked-fetch.js
+// .wrangler/tmp/bundle-WgdCL5/checked-fetch.js
 var urls = /* @__PURE__ */ new Set();
 function checkURL(request, init) {
   const url = request instanceof URL ? request : new URL(
@@ -78,9 +78,11 @@ async function handleSubscribe(request, env) {
     console.log("[subscribe] KV put OK");
   } catch (err) {
     console.error("[subscribe] KV put failed:", err.message);
-    return new Response("KV error", { status: 500, headers: corsHeaders() });
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders() });
   }
-  return new Response("OK", { status: 200, headers: corsHeaders() });
+  const readback = await env.sunsmart_subscriptions.get(key);
+  console.log("[subscribe] readback:", readback ? "found" : "NOT FOUND");
+  return new Response(JSON.stringify({ ok: true, key, readback: readback ? "found" : "null" }), { status: 200, headers: { ...corsHeaders(), "Content-Type": "application/json" } });
 }
 __name(handleSubscribe, "handleSubscribe");
 async function handleUnsubscribe(request, env) {
@@ -92,7 +94,14 @@ async function handleUnsubscribe(request, env) {
 }
 __name(handleUnsubscribe, "handleUnsubscribe");
 async function checkAndNotify(env) {
-  if (!isWithinNotifyWindow(/* @__PURE__ */ new Date())) return;
+  const now = /* @__PURE__ */ new Date();
+  console.log("[cron] checkAndNotify start, NZ time:", now.toLocaleString("en-NZ", { timeZone: "Pacific/Auckland" }));
+  if (!isWithinNotifyWindow(now)) {
+    console.log("[cron] outside notify window, skipping");
+    return;
+  }
+  const list0 = await env.sunsmart_subscriptions.list({ limit: 1e3 });
+  console.log("[cron] subscriptions in KV:", list0.keys.length);
   let cursor;
   do {
     const list = await env.sunsmart_subscriptions.list({ cursor, limit: 1e3 });
@@ -102,9 +111,12 @@ async function checkAndNotify(env) {
       if (!raw) return;
       const entry = JSON.parse(raw);
       const currentUV = await fetchCurrentUV(entry.location.lat, entry.location.long);
+      console.log("[cron] location:", entry.location.label, "lastUV:", entry.lastUV, "currentUV:", currentUV);
       if (currentUV === null) return;
       if (shouldNotify(entry.lastUV, currentUV)) {
+        console.log("[cron] sending push to", entry.location.label, "UV:", currentUV);
         const sent = await sendPush(entry.pushSubscription, entry.location.label, currentUV, env);
+        console.log("[cron] sendPush result:", sent);
         if (sent === "gone") {
           await env.sunsmart_subscriptions.delete(name);
           return;
@@ -328,7 +340,7 @@ var scheduled = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "scheduled");
 var middleware_scheduled_default = scheduled;
 
-// .wrangler/tmp/bundle-iU9VjA/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-WgdCL5/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_scheduled_default
@@ -360,7 +372,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-iU9VjA/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-WgdCL5/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;
