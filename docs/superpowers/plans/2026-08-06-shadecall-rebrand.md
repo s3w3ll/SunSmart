@@ -337,7 +337,7 @@ git commit -m "refactor: rename getSunSmartWindow to getProtectionWindow"
 ### Task 4: Front-end display strings
 
 **Files:**
-- Modify: `index.html:6`, `index.html:15`
+- Modify: `index.html:6`, `index.html:15`, `index.html:38`, `index.html:78`, `index.html:84`, `index.html:104`
 - Modify: `workers/uv-notifier/index.js:159`
 - Modify: `tests/test.js:36`
 
@@ -354,6 +354,22 @@ git commit -m "refactor: rename getSunSmartWindow to getProtectionWindow"
 ```html
       <h1 class="app-title">☀️ ShadeCall</h1>
 ```
+
+- [ ] **Step 1b: Neutralise the four aria-labels**
+
+These are screen-reader-visible. Decision (2026-08-06): drop the brand from the
+accessibility layer entirely and describe **function** instead — screen-reader
+users gain nothing from the product name repeated on every landmark, and
+function-based labels survive any future rename untouched.
+
+| Line | Before | After |
+|---|---|---|
+| `index.html:38` | `aria-label="SunSmart UV dashboard"` | `aria-label="UV dashboard"` |
+| `index.html:78` | `aria-label="Hourly SunSmart timeline"` | `aria-label="Hourly UV timeline"` |
+| `index.html:84` | `aria-label="SunSmart policy actions"` | `aria-label="Sun protection policy actions"` |
+| `index.html:104` | `aria-label="SunSmart actions"` | `aria-label="Sun protection actions"` |
+
+Do **not** introduce "ShadeCall" into any `aria-label`.
 
 - [ ] **Step 2: Update the push notification body**
 
