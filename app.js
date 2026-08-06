@@ -230,9 +230,9 @@ function removeKey(name) {
 function loadState() {
   try {
     return {
-      location: JSON.parse(localStorage.getItem('sunsmart_location') || 'null'),
-      policy:   JSON.parse(localStorage.getItem('sunsmart_policy') || 'null'),
-      uvCache:  JSON.parse(localStorage.getItem('sunsmart_uv_cache') || 'null'),
+      location: JSON.parse(readKey('location') || 'null'),
+      policy:   JSON.parse(readKey('policy')   || 'null'),
+      uvCache:  JSON.parse(readKey('uv_cache') || 'null'),
     };
   } catch {
     return { location: null, policy: null, uvCache: null };
@@ -241,12 +241,12 @@ function loadState() {
 
 function saveState(key, value) {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    writeKey(key, JSON.stringify(value));
   } catch { /* storage full — silently ignore */ }
 }
 
 function clearState(key) {
-  try { localStorage.removeItem(key); } catch { /* ignore */ }
+  try { removeKey(key); } catch { /* ignore */ }
 }
 
 function isCacheValid(cache, lat, long) {
@@ -260,7 +260,7 @@ function isCacheValid(cache, lat, long) {
 }
 
 function cacheUVData(data, lat, long) {
-  saveState('sunsmart_uv_cache', { data, fetchedAt: Date.now(), lat, long });
+  saveState('uv_cache', { data, fetchedAt: Date.now(), lat, long });
 }
 
 function loadCachedUV() {
@@ -422,7 +422,7 @@ function initLocationSelector() {
 
 async function selectLocation(lat, long, label) {
   const location = { lat, long, label };
-  saveState('sunsmart_location', location);
+  saveState('location', location);
   hideLocationSelector();
   document.getElementById('app').classList.remove('hidden');
   document.getElementById('location-label').textContent = label;
@@ -600,7 +600,7 @@ function initPolicyPills() {
   document.querySelectorAll('.pill').forEach(btn => {
     btn.addEventListener('click', () => {
       const policyType = btn.dataset.policy;
-      saveState('sunsmart_policy', policyType);
+      saveState('policy', policyType);
       document.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
       const cache = loadCachedUV();
@@ -767,9 +767,9 @@ function hideStaleWarning() {
 function initResetBtn() {
   document.getElementById('reset-btn').addEventListener('click', () => {
     if (!confirm('Reset your location and policy selection?')) return;
-    clearState('sunsmart_location');
-    clearState('sunsmart_policy');
-    clearState('sunsmart_uv_cache');
+    clearState('location');
+    clearState('policy');
+    clearState('uv_cache');
     unsubscribeFromPush();
     if (currentFetchController) currentFetchController.abort();
     showLocationSelector();
@@ -882,8 +882,8 @@ async function init() {
 
     document.getElementById('change-location-btn').addEventListener('click', () => {
       if (currentFetchController) currentFetchController.abort();
-      clearState('sunsmart_location');
-      clearState('sunsmart_uv_cache');
+      clearState('location');
+      clearState('uv_cache');
       showLocationSelector();
     });
   }
@@ -938,7 +938,7 @@ async function subscribeToPush(location) {
     await subscription.unsubscribe();
     throw new Error(`Subscribe failed: ${res.status}`);
   }
-  localStorage.setItem('sunsmart_push_subscribed', 'true');
+  writeKey('push_subscribed', 'true');
 }
 
 async function unsubscribeFromPush() {
@@ -956,7 +956,7 @@ async function unsubscribeFromPush() {
     });
     await subscription.unsubscribe();
   }
-  localStorage.removeItem('sunsmart_push_subscribed');
+  removeKey('push_subscribed');
 }
 
 function initNotifications() {
@@ -979,7 +979,7 @@ function initNotifications() {
     return;
   }
 
-  const isSubscribed = localStorage.getItem('sunsmart_push_subscribed') === 'true';
+  const isSubscribed = readKey('push_subscribed') === 'true';
   updateNotifyButton(btn, isSubscribed);
 
   // Guard against re-adding listener if hideLocationSelector is called multiple times
@@ -993,7 +993,7 @@ function initNotifications() {
     btn.disabled = true;
     btn.textContent = '⏳ Working…';
 
-    if (localStorage.getItem('sunsmart_push_subscribed') === 'true') {
+    if (readKey('push_subscribed') === 'true') {
       await unsubscribeFromPush();
       updateNotifyButton(btn, false);
       denied.classList.add('hidden');
@@ -1067,5 +1067,8 @@ if (typeof module !== 'undefined' && module.exports) {
     readKey,
     writeKey,
     removeKey,
+    loadState,
+    saveState,
+    clearState,
   };
 }

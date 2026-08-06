@@ -33,6 +33,9 @@ const {
   readKey,
   writeKey,
   removeKey,
+  loadState,
+  saveState,
+  clearState,
 } = require(path.join(__dirname, '..', 'app.js'));
 
 let passed = 0;
@@ -278,6 +281,39 @@ test('removeKey clears BOTH prefixes', () => {
   removeKey('policy');
   assert.deepStrictEqual(global.localStorage._dump(), {});
   assert.strictEqual(readKey('policy'), null);
+});
+
+console.log('\nloadState/saveState/clearState');
+
+test('loadState reads legacy keys written before the rebrand', () => {
+  global.localStorage = makeLocalStorage({
+    sunsmart_location: '{"lat":-41.28,"long":174.78,"label":"Wellington"}',
+    sunsmart_policy:   '"primary"',
+  });
+  const state = loadState();
+  assert.strictEqual(state.policy, 'primary');
+  assert.strictEqual(state.location.label, 'Wellington');
+});
+
+test('saveState writes the new prefix only', () => {
+  global.localStorage = makeLocalStorage({ sunsmart_policy: '"primary"' });
+  saveState('policy', 'ec');
+  const dump = global.localStorage._dump();
+  assert.strictEqual(dump.shadecall_policy, '"ec"');
+  assert.strictEqual(dump.sunsmart_policy, '"primary"'); // untouched
+  assert.strictEqual(loadState().policy, 'ec');          // new key wins
+});
+
+test('clearState removes a legacy key so it cannot resurrect', () => {
+  global.localStorage = makeLocalStorage({
+    sunsmart_location: '{"label":"Wellington"}',
+    sunsmart_policy:   '"primary"',
+  });
+  clearState('location');
+  clearState('policy');
+  assert.deepStrictEqual(global.localStorage._dump(), {});
+  assert.strictEqual(loadState().location, null);
+  assert.strictEqual(loadState().policy, null);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);
