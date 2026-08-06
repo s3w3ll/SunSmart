@@ -1,0 +1,19 @@
+# Secrets — never commit
+.env
+.env.*
+*.env
+!.env.example
+
+# Superpowers SDD scratch workspace (ledgers, briefs, review packages)
+.superpowers/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# Node (no package.json today, but wrangler/npx can create these)
+node_modules/
+.wrangler/
