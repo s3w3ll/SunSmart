@@ -3,7 +3,21 @@ const path = require('path');
 
 // Stub browser globals so app.js can be required without errors
 global.document = { addEventListener: () => {} };
-global.localStorage = {};
+global.window = { addEventListener: () => {} };
+
+function makeLocalStorage(seed = {}) {
+  const store = new Map(Object.entries(seed));
+  return {
+    getItem: k => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: k => store.delete(k),
+    key: i => [...store.keys()][i] ?? null,
+    get length() { return store.size; },
+    _dump: () => Object.fromEntries(store),
+  };
+}
+global.makeLocalStorage = makeLocalStorage;
+global.localStorage = makeLocalStorage();
 
 const {
   getActions,
@@ -16,6 +30,9 @@ const {
   getSunSmartWindow,
   getSunscreenTiming,
   isCacheValid,
+  readKey,
+  writeKey,
+  removeKey,
 } = require(path.join(__dirname, '..', 'app.js'));
 
 let passed = 0;
@@ -222,6 +239,45 @@ test('returns false when fetchedAt is 48 hours ago (different day)', () => {
   const yesterday = Date.now() - 48 * 60 * 60 * 1000;
   const cache = { data: { time: [], uv_index: [] }, fetchedAt: yesterday, lat: -36.8, long: 174.7 };
   assert.strictEqual(isCacheValid(cache, -36.8, 174.7), false);
+});
+
+// ============================================================
+// Storage helpers — dual-read migration
+// ============================================================
+console.log('\nstorage helpers (dual-read)');
+
+test('readKey falls back to the legacy key when the new key is absent', () => {
+  global.localStorage = makeLocalStorage({ sunsmart_policy: '"primary"' });
+  assert.strictEqual(readKey('policy'), '"primary"');
+});
+
+test('readKey prefers the new key when both exist', () => {
+  global.localStorage = makeLocalStorage({
+    sunsmart_policy:  '"primary"',
+    shadecall_policy: '"secondary"',
+  });
+  assert.strictEqual(readKey('policy'), '"secondary"');
+});
+
+test('readKey returns null when neither key exists', () => {
+  global.localStorage = makeLocalStorage();
+  assert.strictEqual(readKey('policy'), null);
+});
+
+test('writeKey writes only the new prefix', () => {
+  global.localStorage = makeLocalStorage();
+  writeKey('policy', '"ec"');
+  assert.deepStrictEqual(global.localStorage._dump(), { shadecall_policy: '"ec"' });
+});
+
+test('removeKey clears BOTH prefixes', () => {
+  global.localStorage = makeLocalStorage({
+    sunsmart_policy:  '"primary"',
+    shadecall_policy: '"secondary"',
+  });
+  removeKey('policy');
+  assert.deepStrictEqual(global.localStorage._dump(), {});
+  assert.strictEqual(readKey('policy'), null);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

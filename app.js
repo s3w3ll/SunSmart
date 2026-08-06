@@ -198,6 +198,35 @@ function getSunscreenTiming(hourlyData) {
 /* ============================================================
    CACHE & STATE
    ============================================================ */
+const STORAGE_PREFIX        = 'shadecall_';
+const STORAGE_LEGACY_PREFIX = 'sunsmart_';
+
+/**
+ * Dual-read: prefer the current prefix, fall back to the pre-rebrand key.
+ * Nothing is ever actively migrated — the fallback is permanent.
+ */
+function readKey(name) {
+  const current = localStorage.getItem(STORAGE_PREFIX + name);
+  if (current !== null) return current;
+  return localStorage.getItem(STORAGE_LEGACY_PREFIX + name);
+}
+
+/** Writes only ever land on the current prefix. */
+function writeKey(name, value) {
+  localStorage.setItem(STORAGE_PREFIX + name, value);
+}
+
+/**
+ * Deletes MUST clear both prefixes. Clearing only the current key would let
+ * readKey() fall back to the surviving legacy key and resurrect state the user
+ * just cleared — sign-out would leak the previous school's location, and
+ * unsubscribe would leave the UI stuck showing "subscribed".
+ */
+function removeKey(name) {
+  localStorage.removeItem(STORAGE_PREFIX + name);
+  localStorage.removeItem(STORAGE_LEGACY_PREFIX + name);
+}
+
 function loadState() {
   try {
     return {
@@ -1035,5 +1064,8 @@ if (typeof module !== 'undefined' && module.exports) {
     getSunSmartWindow,
     getSunscreenTiming,
     isCacheValid,
+    readKey,
+    writeKey,
+    removeKey,
   };
 }
