@@ -73,6 +73,7 @@ Both hardcoded in `app.js` — safe to expose client-side. RLS enforces data iso
 | `shadecall_location` | `{ lat, long, label }` |
 | `shadecall_policy` | `"ec" \| "primary" \| "secondary"` |
 | `shadecall_uv_cache` | `{ data, fetchedAt, lat, long }` |
+| `shadecall_push_subscribed` | `"true"` when subscribed to UV push alerts; key absent when not. Mirrors authoritative state in the Worker's KV. |
 
 For authenticated users, localStorage is a local cache only — Supabase DB is the source of truth.
 

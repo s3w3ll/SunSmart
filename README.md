@@ -124,5 +124,6 @@ The app deploys automatically via Cloudflare Pages on push to `main`. No build c
 | `shadecall_location` | `{ lat, long, label }` — last selected location |
 | `shadecall_policy` | `"ec"`, `"primary"`, or `"secondary"` — selected policy type |
 | `shadecall_uv_cache` | Cached UV data with fetch timestamp |
+| `shadecall_push_subscribed` | `"true"` when subscribed to UV push alerts; key absent when not. Mirrors authoritative subscription state in the Worker's KV. |
 
 For signed-in users, localStorage is a local cache — Supabase is the source of truth.
