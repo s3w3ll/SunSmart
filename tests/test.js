@@ -33,6 +33,8 @@ const {
   readKey,
   writeKey,
   removeKey,
+  nzISOString,
+  adaptNiwaResponse,
   loadState,
   saveState,
   clearState,
@@ -314,6 +316,58 @@ test('clearState removes a legacy key so it cannot resurrect', () => {
   assert.deepStrictEqual(global.localStorage._dump(), {});
   assert.strictEqual(loadState().location, null);
   assert.strictEqual(loadState().policy, null);
+});
+
+// ============================================================
+// adaptNiwaResponse() — NIWA shape -> { time, uv_index }
+// ============================================================
+console.log('\nadaptNiwaResponse()');
+
+// Fixture mirrors NIWA's real /data response shape (verified live 2026-08-06:
+// api.niwa.co.nz/uv/data?lat=-41.28&long=174.78). "2026-08-05T18:00:00Z" is a
+// timestamp confirmed in that live check to be 06:00 NZST the next day — used
+// here as an independent, non-circular check on the UTC->NZ-local conversion.
+const niwaFixture = {
+  coord: 'EPSG:4326,-41.28,174.78',
+  products: [
+    {
+      name: 'cloudy_sky_uv_index',
+      values: [
+        { time: '2026-08-05T18:00:00Z', value: 0 },
+        { time: '2026-08-05T19:00:00Z', value: 0.42 },
+      ],
+    },
+    {
+      name: 'clear_sky_uv_index',
+      values: [
+        { time: '2026-08-05T18:00:00Z', value: 0 },
+        { time: '2026-08-05T19:00:00Z', value: 0.95 }, // deliberately different from cloudy
+      ],
+    },
+  ],
+};
+
+test('converts NIWA UTC timestamps to NZ-local naive strings', () => {
+  const result = adaptNiwaResponse(niwaFixture);
+  // 18:00Z + 12h (NZST, no DST in August) rolls into the next calendar day
+  assert.strictEqual(result.time[0], '2026-08-06T06:00');
+  assert.strictEqual(result.time[1], '2026-08-06T07:00');
+});
+
+test('picks cloudy_sky_uv_index, not clear_sky_uv_index', () => {
+  const result = adaptNiwaResponse(niwaFixture);
+  assert.deepStrictEqual(result.uv_index, [0, 0.42]);
+});
+
+test('output shape matches what getCurrentUVI/getDailyPeak/getProtectionWindow expect', () => {
+  const result = adaptNiwaResponse(niwaFixture);
+  assert.deepStrictEqual(Object.keys(result).sort(), ['time', 'uv_index']);
+  assert.strictEqual(result.time.length, result.uv_index.length);
+});
+
+test('throws clearly when cloudy_sky_uv_index is missing', () => {
+  const noProduct = { coord: 'x', products: [niwaFixture.products[1]] }; // clear_sky only
+  assert.throws(() => adaptNiwaResponse(noProduct), /cloudy_sky_uv_index/);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

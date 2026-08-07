@@ -273,10 +273,31 @@ function loadCachedUV() {
    ============================================================ */
 let currentFetchController = null;
 
+/**
+ * Fetches hourly UV data and returns { time: [...], uv_index: [...] } —
+ * time strings in NZ-local "YYYY-MM-DDTHH:00" format (see nzISOString),
+ * matching what getCurrentUVI/getDailyPeak/getProtectionWindow all expect.
+ *
+ * Source defaults to Open-Meteo for every visitor. Appending ?uvSource=niwa
+ * switches to NIWA's UV API for INTERNAL TESTING ONLY, per the "NIWA
+ * licence" thread — NIWA's Access Terms don't yet permit serving their data
+ * to end users, so this must stay opt-in, not the default, until a product
+ * licence is confirmed.
+ */
 async function fetchUVData(lat, long) {
   if (currentFetchController) currentFetchController.abort();
   currentFetchController = new AbortController();
 
+  const useNiwa = new URLSearchParams(window.location.search).get('uvSource') === 'niwa';
+  const hourly = useNiwa
+    ? await fetchNiwaUVData(lat, long, currentFetchController.signal)
+    : await fetchOpenMeteoUVData(lat, long, currentFetchController.signal);
+
+  currentFetchController = null;
+  return hourly;
+}
+
+async function fetchOpenMeteoUVData(lat, long, signal) {
   const url = new URL('https://api.open-meteo.com/v1/forecast');
   url.searchParams.set('latitude', lat);
   url.searchParams.set('longitude', long);
@@ -284,11 +305,52 @@ async function fetchUVData(lat, long) {
   url.searchParams.set('timezone', 'Pacific/Auckland');
   url.searchParams.set('forecast_days', '1');
 
-  const response = await fetch(url, { signal: currentFetchController.signal });
+  const response = await fetch(url, { signal });
   if (!response.ok) throw new Error(`Open-Meteo error: ${response.status}`);
   const json = await response.json();
-  currentFetchController = null;
   return json.hourly; // { time: [...], uv_index: [...] }
+}
+
+/**
+ * Fetches NIWA's UV forecast via the uv-notifier Worker (never calls
+ * api.niwa.co.nz directly — the API key lives only in the Worker's secrets,
+ * never in this browser bundle) and adapts NIWA's { products: [...] } shape
+ * into Open-Meteo's { time, uv_index } shape.
+ *
+ * Uses cloudy_sky_uv_index — the closer analog to Open-Meteo's single
+ * realistic-forecast series, so thresholds/comparisons stay meaningful
+ * during testing. clear_sky_uv_index (NIWA's worst-case upper bound) is
+ * available in the same response if that default is revisited later.
+ *
+ * NIWA returns UTC ("...Z") timestamps; every downstream helper expects
+ * NZ-local naive strings, so each timestamp is converted via nzISOString
+ * before this function returns — skipping that step is the exact trap
+ * noted in docs/superpowers/specs/ (a naive indexOf/string match against
+ * UTC times silently returns UV 0 for every hour).
+ */
+/**
+ * Pure shape adapter — no fetch, no state. Separated out so the UTC→NZ-local
+ * conversion has a direct unit test rather than only ever being exercised
+ * live against the network.
+ */
+function adaptNiwaResponse(niwaJson) {
+  const cloudy = niwaJson.products.find(p => p.name === 'cloudy_sky_uv_index');
+  if (!cloudy) throw new Error('NIWA response missing cloudy_sky_uv_index');
+
+  return {
+    time: cloudy.values.map(v => nzISOString(new Date(v.time))),
+    uv_index: cloudy.values.map(v => v.value),
+  };
+}
+
+async function fetchNiwaUVData(lat, long, signal) {
+  const url = `${WORKER_URL}/uv?lat=${lat}&long=${long}`;
+  const response = await fetch(url, {
+    signal,
+    headers: { 'X-Subscribe-Secret': SUBSCRIBE_SECRET },
+  });
+  if (!response.ok) throw new Error(`NIWA proxy error: ${response.status}`);
+  return adaptNiwaResponse(await response.json());
 }
 
 async function searchAddress(query) {
@@ -1070,5 +1132,7 @@ if (typeof module !== 'undefined' && module.exports) {
     loadState,
     saveState,
     clearState,
+    nzISOString,
+    adaptNiwaResponse,
   };
 }

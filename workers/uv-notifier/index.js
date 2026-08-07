@@ -16,6 +16,9 @@ export default {
     if (request.method === 'DELETE' && url.pathname === '/unsubscribe') {
       return handleUnsubscribe(request, env);
     }
+    if (request.method === 'GET' && url.pathname === '/uv') {
+      return handleUvProxy(url, env);
+    }
     return new Response('Not found', { status: 404, headers: corsHeaders() });
   },
 
@@ -63,6 +66,40 @@ async function handleUnsubscribe(request, env) {
   const key = await endpointKey(endpoint);
   await env.shadecall_subscriptions.delete(key);
   return new Response('OK', { status: 200, headers: corsHeaders() });
+}
+
+/**
+ * GET /uv — thin authenticated proxy to NIWA's UV API.
+ *
+ * Exists so the browser bundle (app.js) never holds env.NIWA_API_KEY — any
+ * value shipped to a browser is public within seconds via view-source. The
+ * X-Subscribe-Secret check in authorised() (applied to every route before
+ * dispatch) is the only thing standing between this route and being an open
+ * relay for NIWA's data, so it must stay in place here exactly as it does
+ * for /subscribe and /unsubscribe.
+ *
+ * INTERNAL TESTING ONLY per NIWA's Access Terms (developer.niwa.co.nz/terms)
+ * until a product/service licence is confirmed — see the "NIWA licence"
+ * thread in project memory / docs/superpowers/specs/.
+ */
+async function handleUvProxy(url, env) {
+  const lat = Number(url.searchParams.get('lat'));
+  const long = Number(url.searchParams.get('long'));
+  if (!Number.isFinite(lat) || !Number.isFinite(long)) {
+    return new Response('Bad request: lat/long required', { status: 400, headers: corsHeaders() });
+  }
+  if (lat < -47 || lat > -34 || long < 166 || long > 178) {
+    return new Response('Bad request: outside NZ bounds', { status: 400, headers: corsHeaders() });
+  }
+
+  const niwaUrl = `https://api.niwa.co.nz/uv/data?lat=${lat}&long=${long}`;
+  const res = await fetch(niwaUrl, { headers: { 'x-apikey': env.NIWA_API_KEY } });
+  const body = await res.text();
+
+  return new Response(body, {
+    status: res.status,
+    headers: { ...corsHeaders(), 'Content-Type': 'application/json' },
+  });
 }
 
 // ── Cron: UV check ────────────────────────────────────────────────────────────
