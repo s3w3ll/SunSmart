@@ -27,7 +27,7 @@ const {
   getUVLevel,
   getCurrentUVI,
   getDailyPeak,
-  getSunSmartWindow,
+  getProtectionWindow,
   getSunscreenTiming,
   isCacheValid,
   readKey,
@@ -172,24 +172,24 @@ test('returns null when all UVI 0', () => {
   assert.strictEqual(getDailyPeak(data), null);
 });
 
-console.log('\ngetSunSmartWindow()');
+console.log('\ngetProtectionWindow()');
 test('returns correct window for hours ≥ 3', () => {
   const uvs = Array(24).fill(0);
   uvs[10] = 3.1; uvs[11] = 5; uvs[12] = 6; uvs[13] = 4; uvs[16] = 3.0;
   const data = makeHourlyData(uvs);
-  const w = getSunSmartWindow(data);
+  const w = getProtectionWindow(data);
   assert.strictEqual(w.start, '2026-03-20T10:00');
   assert.strictEqual(w.end,   '2026-03-20T16:00');
 });
 test('returns null when no hours ≥ 3', () => {
   const data = makeHourlyData(Array(24).fill(1));
-  assert.strictEqual(getSunSmartWindow(data), null);
+  assert.strictEqual(getProtectionWindow(data), null);
 });
 test('treats null UVI as 0 (below threshold)', () => {
   const uvs = Array(24).fill(null);
   uvs[10] = 4;
   const data = makeHourlyData(uvs);
-  const w = getSunSmartWindow(data);
+  const w = getProtectionWindow(data);
   assert.strictEqual(w.start, '2026-03-20T10:00');
   assert.strictEqual(w.end,   '2026-03-20T10:00');
 });

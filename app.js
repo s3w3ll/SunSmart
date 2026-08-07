@@ -165,7 +165,7 @@ function getDailyPeak(hourlyData) {
   return { value: maxVal, time: hourlyData.time[maxIdx] };
 }
 
-function getSunSmartWindow(hourlyData) {
+function getProtectionWindow(hourlyData) {
   const activeIdxs = hourlyData.uv_index
     .map((v, i) => ({ v: v ?? 0, i }))
     .filter(({ v }) => meetsThreshold(v))
@@ -178,7 +178,7 @@ function getSunSmartWindow(hourlyData) {
 }
 
 function getSunscreenTiming(hourlyData) {
-  const window = getSunSmartWindow(hourlyData);
+  const window = getProtectionWindow(hourlyData);
   if (!window) return null;
 
   const firstActive = new Date(window.start);
@@ -441,7 +441,7 @@ function renderUVCard(hourlyData, location, policyType) {
   const currentUVI = getCurrentUVI(hourlyData);
   const level      = getUVLevel(currentUVI);
   const peak       = getDailyPeak(hourlyData);
-  const uvWindow   = getSunSmartWindow(hourlyData);
+  const uvWindow   = getProtectionWindow(hourlyData);
 
   // Card background
   document.getElementById('uv-card').setAttribute('data-level', level);
@@ -1061,7 +1061,7 @@ if (typeof module !== 'undefined' && module.exports) {
     getUVLevel,
     getCurrentUVI,
     getDailyPeak,
-    getSunSmartWindow,
+    getProtectionWindow,
     getSunscreenTiming,
     isCacheValid,
     readKey,
