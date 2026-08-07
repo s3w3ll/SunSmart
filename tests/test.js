@@ -53,7 +53,7 @@ function test(name, fn) {
   }
 }
 
-console.log('\n=== SunSmart Unit Tests ===\n');
+console.log('\n=== ShadeCall Unit Tests ===\n');
 
 // ============================================================
 // getActions()

@@ -156,7 +156,7 @@ async function fetchCurrentUV(lat, long) {
 async function sendPush(subscription, locationLabel, uvValue, env) {
   const payload = JSON.stringify({
     title: `☀️ UV is now ${uvValue} at ${locationLabel}`,
-    body: 'SunSmart measures required — hats, sunscreen, shade.',
+    body: 'Sun protection required — hats, sunscreen, shade.',
   });
   try {
     const status = await webPushSend(subscription, payload, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);

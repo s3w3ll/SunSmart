@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SunSmart UV — NZ Schools</title>
+  <title>ShadeCall — UV guidance for NZ schools</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -12,7 +12,7 @@
   <!-- Location selector (shown full-screen when no location saved) -->
   <div id="location-selector" class="location-selector hidden" role="main" aria-label="Location setup">
     <div class="location-selector__inner">
-      <h1 class="app-title">☀️ SunSmart UV</h1>
+      <h1 class="app-title">☀️ ShadeCall</h1>
       <p class="location-selector__prompt">Find your school's UV level</p>
       <div class="search-box">
         <input
@@ -35,7 +35,7 @@
   </div>
 
   <!-- Main app (shown after location is set) -->
-  <main id="app" class="app hidden" aria-label="SunSmart UV dashboard">
+  <main id="app" class="app hidden" aria-label="UV dashboard">
 
     <!-- UV Data Card -->
     <section id="uv-card" class="uv-card" aria-label="UV index summary">
@@ -75,13 +75,13 @@
       </div>
       <details id="timeline-details" class="timeline-details hidden">
         <summary class="timeline-toggle"><span id="timeline-toggle-label">Plan your day</span></summary>
-        <div id="timeline" class="timeline" role="list" aria-label="Hourly SunSmart timeline"></div>
+        <div id="timeline" class="timeline" role="list" aria-label="Hourly UV timeline"></div>
         <div id="hour-detail" class="hour-detail hidden" aria-live="polite"></div>
       </details>
     </section>
 
     <!-- Policy Action Panel -->
-    <section class="policy-section" aria-label="SunSmart policy actions">
+    <section class="policy-section" aria-label="Sun protection policy actions">
 
       <div class="policy-pills" role="group" aria-label="Select your policy type">
         <span class="policy-pills__label">Your policy type:</span>
@@ -101,7 +101,7 @@
         <div id="checklist-status" class="checklist-status" role="status" aria-live="polite"></div>
         <div id="sunscreen-prompt" class="sunscreen-prompt hidden" role="alert"></div>
         <div id="baby-callout" class="baby-callout hidden" role="note"></div>
-        <ul id="checklist" class="checklist" aria-label="SunSmart actions"></ul>
+        <ul id="checklist" class="checklist" aria-label="Sun protection actions"></ul>
       </div>
 
     </section>
