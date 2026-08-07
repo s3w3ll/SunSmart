@@ -53,7 +53,7 @@ async function handleSubscribe(request, env) {
   }
   const key = await endpointKey(subscription.endpoint);
   const entry = { pushSubscription: subscription, location, lastUV: 0, lastNotifiedAt: null };
-  await env.sunsmart_subscriptions.put(key, JSON.stringify(entry));
+  await env.shadecall_subscriptions.put(key, JSON.stringify(entry));
   return new Response('OK', { status: 200, headers: corsHeaders() });
 }
 
@@ -61,7 +61,7 @@ async function handleUnsubscribe(request, env) {
   const { endpoint } = await request.json();
   if (!endpoint) return new Response('Bad request', { status: 400, headers: corsHeaders() });
   const key = await endpointKey(endpoint);
-  await env.sunsmart_subscriptions.delete(key);
+  await env.shadecall_subscriptions.delete(key);
   return new Response('OK', { status: 200, headers: corsHeaders() });
 }
 
@@ -72,11 +72,11 @@ async function checkAndNotify(env) {
 
   let cursor;
   do {
-    const list = await env.sunsmart_subscriptions.list({ cursor, limit: 1000 });
+    const list = await env.shadecall_subscriptions.list({ cursor, limit: 1000 });
     cursor = list.cursor;
 
     await Promise.all(list.keys.map(async ({ name }) => {
-      const raw = await env.sunsmart_subscriptions.get(name);
+      const raw = await env.shadecall_subscriptions.get(name);
       if (!raw) return;
       const entry = JSON.parse(raw);
 
@@ -86,14 +86,14 @@ async function checkAndNotify(env) {
       if (shouldNotify(entry.lastUV, currentUV)) {
         const sent = await sendPush(entry.pushSubscription, entry.location.label, currentUV, env);
         if (sent === 'gone') {
-          await env.sunsmart_subscriptions.delete(name);
+          await env.shadecall_subscriptions.delete(name);
           return;
         }
         entry.lastNotifiedAt = new Date().toISOString();
       }
 
       entry.lastUV = currentUV;
-      await env.sunsmart_subscriptions.put(name, JSON.stringify(entry));
+      await env.shadecall_subscriptions.put(name, JSON.stringify(entry));
     }));
   } while (cursor);
 }
@@ -103,14 +103,14 @@ async function checkAndNotify(env) {
 async function resetLastUV(env) {
   let cursor;
   do {
-    const list = await env.sunsmart_subscriptions.list({ cursor, limit: 1000 });
+    const list = await env.shadecall_subscriptions.list({ cursor, limit: 1000 });
     cursor = list.cursor;
     await Promise.all(list.keys.map(async ({ name }) => {
-      const raw = await env.sunsmart_subscriptions.get(name);
+      const raw = await env.shadecall_subscriptions.get(name);
       if (!raw) return;
       const entry = JSON.parse(raw);
       entry.lastUV = 0;
-      await env.sunsmart_subscriptions.put(name, JSON.stringify(entry));
+      await env.shadecall_subscriptions.put(name, JSON.stringify(entry));
     }));
   } while (cursor);
 }
