@@ -1,4 +1,4 @@
-# SunSmart — Claude Agent Context
+# ShadeCall — Claude Agent Context
 
 ## What This Project Is
 
@@ -64,15 +64,15 @@ Both hardcoded in `app.js` — safe to expose client-side. RLS enforces data iso
 - **School hours** — stored in Supabase, used to contextualise the timeline (outside hours = dimmed blocks)
 - **`_listenersInitialized` flag** — prevents duplicate event listeners on iOS bfcache restores (blank page fix)
 - **`_bootCompleted` flag** — prevents double-boot from concurrent `onAuthStateChange` + `getSession()` calls
+- **Renamed from "SunSmart" to "ShadeCall" (2026-08-06)** — "SunSmart" is the Cancer Society NZ programme name (`sunsmart.org.nz`), same audience and subject, so the old name risked implying official endorsement. URL stays `sun.forgesync.co.nz`. localStorage reads fall back to the legacy `sunsmart_` prefix indefinitely; writes use `shadecall_`; deletes clear both. See `docs/superpowers/specs/2026-08-06-shadecall-rename-design.md`.
 
 ## localStorage Keys
 
 | Key | Value |
 |---|---|
-| `sunsmart_location` | `{ lat, long, label }` |
-| `sunsmart_policy` | `"ec" \| "primary" \| "secondary"` |
-| `sunsmart_uv_cache` | `{ data, fetchedAt, lat, long }` |
-| `sunsmart_guest` | `true` (guest mode flag) |
+| `shadecall_location` | `{ lat, long, label }` |
+| `shadecall_policy` | `"ec" \| "primary" \| "secondary"` |
+| `shadecall_uv_cache` | `{ data, fetchedAt, lat, long }` |
 
 For authenticated users, localStorage is a local cache only — Supabase DB is the source of truth.
 

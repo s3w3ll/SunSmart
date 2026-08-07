@@ -1,4 +1,4 @@
-# SunSmart
+# ShadeCall
 
 A webapp for New Zealand schools and Early Childhood Centres (ECCs) to understand their SunSmart obligations and get at-a-glance UV protection guidance for the day.
 
@@ -8,7 +8,7 @@ A webapp for New Zealand schools and Early Childhood Centres (ECCs) to understan
 
 ## What It Does
 
-SunSmart answers the question every NZ school administrator, teacher, and duty supervisor needs answered each morning:
+ShadeCall answers the question every NZ school administrator, teacher, and duty supervisor needs answered each morning:
 
 > "What UV protection actions does my school need to take today, and when?"
 
@@ -121,9 +121,8 @@ The app deploys automatically via Cloudflare Pages on push to `main`. No build c
 
 | Key | Description |
 |-----|-------------|
-| `sunsmart_location` | `{ lat, long, label }` — last selected location |
-| `sunsmart_policy` | `"ec"`, `"primary"`, or `"secondary"` — selected policy type |
-| `sunsmart_uv_cache` | Cached UV data with fetch timestamp |
-| `sunsmart_guest` | `true` when using guest (no-auth) mode |
+| `shadecall_location` | `{ lat, long, label }` — last selected location |
+| `shadecall_policy` | `"ec"`, `"primary"`, or `"secondary"` — selected policy type |
+| `shadecall_uv_cache` | Cached UV data with fetch timestamp |
 
 For signed-in users, localStorage is a local cache — Supabase is the source of truth.

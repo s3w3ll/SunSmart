@@ -4,6 +4,18 @@
 > API base URL: `https://api.niwa.co.nz/uv`
 > Developer docs: https://developer.niwa.co.nz/docs/uv-api/latest/routes/data/get
 
+> **STATUS: PARTIALLY STALE (checked 2026-08-06).** The app fetches UV data from
+> **Open-Meteo**, not NIWA — see `app.js:251`. The NIWA material below is retained
+> because a NIWA data licence is being pursued; it is reference for a possible
+> future source, not a description of current behaviour.
+>
+> Verified against the live NIWA API on 2026-08-06: `/data` returns 73 hourly
+> points spanning exactly 72 hours, from 06:00 NZ today to 06:00 NZ +3 days,
+> for both `cloudy_sky_uv_index` and `clear_sky_uv_index`. Timestamps are UTC
+> with a `Z` suffix — unlike Open-Meteo, which returns naive NZ-local strings.
+> NIWA's standard API terms permit internal use only and forbid redistribution
+> to third parties, so a product licence is required before shipping on it.
+
 ---
 
 ## Authentication
