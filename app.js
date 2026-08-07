@@ -301,7 +301,7 @@ async function searchAddress(query) {
   url.searchParams.set('addressdetails', '1');
 
   const response = await fetch(url, {
-    headers: { 'Accept-Language': 'en', 'User-Agent': 'SunSmart-NZ/1.0' },
+    headers: { 'Accept-Language': 'en', 'User-Agent': 'ShadeCall-NZ/1.0' },
   });
   if (!response.ok) throw new Error(`Nominatim error: ${response.status}`);
   const results = await response.json();
@@ -319,7 +319,7 @@ async function reverseGeocode(lat, long) {
   url.searchParams.set('format', 'json');
 
   const response = await fetch(url, {
-    headers: { 'Accept-Language': 'en', 'User-Agent': 'SunSmart-NZ/1.0' },
+    headers: { 'Accept-Language': 'en', 'User-Agent': 'ShadeCall-NZ/1.0' },
   });
   if (!response.ok) throw new Error(`Nominatim reverse error: ${response.status}`);
   const data = await response.json();
@@ -459,17 +459,17 @@ function renderUVCard(hourlyData, location, policyType) {
     ? `Daily peak: ${peak.value.toFixed(1)} at ${formatHour(peak.time)}`
     : 'UV index is low all day';
 
-  // SunSmart active window
+  // Protection active window
   const windowEl   = document.getElementById('uv-window');
   const windowNote = document.getElementById('uv-window-note');
   if (!policyType) {
     windowEl.textContent = 'Select a Policy Type ↓';
     windowNote.classList.add('hidden');
   } else if (uvWindow) {
-    windowEl.textContent = `SunSmart hours: ${formatHour(uvWindow.start)} – ${formatHour(uvWindow.end)}`;
+    windowEl.textContent = `Protection hours: ${formatHour(uvWindow.start)} – ${formatHour(uvWindow.end)}`;
     windowNote.classList.remove('hidden');
   } else {
-    windowEl.textContent = 'No SunSmart hours today';
+    windowEl.textContent = 'No protection hours today';
     windowNote.classList.add('hidden');
   }
 
@@ -544,7 +544,7 @@ function renderChart(hourlyData) {
               borderWidth: 1.5,
               borderDash: [6, 4],
               label: {
-                content: 'SunSmart threshold (UVI 3)',
+                content: 'Protection threshold (UVI 3)',
                 display: true,
                 position: 'end',
                 color: 'rgba(180,0,0,0.7)',
@@ -643,7 +643,7 @@ function renderChecklist(policyType, hourlyData) {
   // Status banner
   if (actions.active) {
     const lvl = getUVLevel(currentUVI);
-    statusEl.textContent = `☀️ SunSmart is active now (UVI ${currentUVI.toFixed(1)} — ${UV_LEVEL_LABELS[lvl] || ''})`;
+    statusEl.textContent = `☀️ Sun protection required now (UVI ${currentUVI.toFixed(1)} — ${UV_LEVEL_LABELS[lvl] || ''})`;
     statusEl.className = 'checklist-status checklist-status--active';
   } else {
     statusEl.textContent = '✓ No SunSmart measures required right now';
