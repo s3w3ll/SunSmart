@@ -1,0 +1,20 @@
+meta {
+  name: Get UV Data (apikey query param)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/data?lat={{lat}}&long={{long}}&apikey={{apiKey}}
+  body: none
+  auth: none
+}
+
+docs {
+  Alternate auth method per API_spec/uv-api.yaml (APIKeyQueryParam security
+  scheme). Same key, transported as a query param instead of a header. Use
+  this to check whether header vs query-param auth behaves differently on
+  NIWA's Apigee gateway — they should be equivalent, but confirming that is
+  exactly the kind of thing worth checking manually before trusting the
+  scripted tool.
+}

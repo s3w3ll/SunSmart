@@ -1,0 +1,34 @@
+meta {
+  name: Get UV Data (x-apikey header)
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/data?lat={{lat}}&long={{long}}
+  body: none
+  auth: none
+}
+
+headers {
+  x-apikey: {{apiKey}}
+}
+
+vars:pre-request {
+  baseUrl: https://api.niwa.co.nz/uv
+  lat: -43.53
+  long: 172.63
+  apiKey: d54PKGgb6jlq4qrHRUikGn7tpqfyEPCE
+}
+
+docs {
+  Primary auth method per API_spec/uv-api.yaml (APIKeyHeader security scheme).
+  This is what the developer.niwa.co.nz portal's own "Try this API" panel used
+  successfully on 2026-08-06.
+  
+  Expected on success: 200, body has `products` (cloudy_sky_uv_index and
+  clear_sky_uv_index) and `coord`.
+  
+  Expected on a bad/unsubscribed key: 401, Apigee-style body:
+  {"fault":{"faultstring":"Invalid ApiKey","detail":{"errorcode":"oauth.v2.InvalidApiKey"}}}
+}

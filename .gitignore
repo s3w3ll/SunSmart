@@ -4,6 +4,10 @@
 *.env
 !.env.example
 
+# Bruno — local.bru holds the real NIWA API key; local.example.bru is the
+# committed template with a placeholder
+bruno/**/environments/local.bru
+
 # Superpowers SDD scratch workspace (ledgers, briefs, review packages)
 .superpowers/
 
