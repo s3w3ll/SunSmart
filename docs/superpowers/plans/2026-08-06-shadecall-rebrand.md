@@ -504,6 +504,70 @@ git commit -m "docs: update for ShadeCall rebrand, fix stale localStorage and AP
 
 ---
 
+### Task 7: Neutralise app-owned SunSmart strings in app.js
+
+**Files:**
+- Modify: `app.js` lines 304, 322, 462, 469, 472, 547, 646
+
+**Interfaces:** none — user-visible copy, one comment, and two HTTP headers.
+
+> **Why this task exists:** the original plan's verification only grepped
+> `index.html workers/ tests/` — it never checked `app.js`, which still held 12
+> "SunSmart" occurrences. Human decision 2026-08-06: neutralise the strings
+> where the app speaks in its own voice; keep the ones that name the
+> programme's *measures*.
+
+**KEEP these five untouched** — they are correct descriptive references to the
+Cancer Society programme and must survive:
+
+| Line | String |
+|---|---|
+| `app.js:30` | `'Staff must follow and model all SunSmart measures.'` |
+| `app.js:44` | `'Staff must follow and model all SunSmart measures.'` |
+| `app.js:57` | `'Staff must follow and model all SunSmart measures.'` |
+| `app.js:649` | `'✓ No SunSmart measures required right now'` |
+| `app.js:722` | `No SunSmart measures required at this hour.` |
+
+- [ ] **Step 1: Change the two User-Agent headers**
+
+`app.js:304` and `app.js:322` — the app identifying itself to Nominatim:
+
+```js
+    headers: { 'Accept-Language': 'en', 'User-Agent': 'ShadeCall-NZ/1.0' },
+```
+
+- [ ] **Step 2: Neutralise the four UI strings and one comment**
+
+| Line | Before | After |
+|---|---|---|
+| `app.js:462` | `// SunSmart active window` | `// Protection active window` |
+| `app.js:469` | `` `SunSmart hours: ${formatHour(uvWindow.start)} – ${formatHour(uvWindow.end)}` `` | `` `Protection hours: ${formatHour(uvWindow.start)} – ${formatHour(uvWindow.end)}` `` |
+| `app.js:472` | `'No SunSmart hours today'` | `'No protection hours today'` |
+| `app.js:547` | `'SunSmart threshold (UVI 3)'` | `'Protection threshold (UVI 3)'` |
+| `app.js:646` | `` `☀️ SunSmart is active now (UVI ${currentUVI.toFixed(1)} — ${UV_LEVEL_LABELS[lvl] \|\| ''})` `` | `` `☀️ Sun protection required now (UVI ${currentUVI.toFixed(1)} — ${UV_LEVEL_LABELS[lvl] \|\| ''})` `` |
+
+Preserve every template literal, interpolation, en dash (–), em dash (—), and
+the ☀️ emoji exactly. Only the words change.
+
+- [ ] **Step 3: Verify**
+
+Run: `grep -n "SunSmart" app.js`
+Expected: **exactly 5 hits** — lines 30, 44, 57, 649, 722 (the KEEP table above).
+Any other hit means a string was missed; any fewer means a programme reference
+was wrongly removed.
+
+Run: `node tests/test.js`
+Expected: 47 passed, 0 failed.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add app.js
+git commit -m "feat: neutralise app-owned SunSmart strings, keep programme references"
+```
+
+---
+
 ## After the plan
 
 These are **not** plan tasks — they require explicit user authorisation:
