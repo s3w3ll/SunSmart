@@ -347,27 +347,59 @@ const niwaFixture = {
   ],
 };
 
+// adaptNiwaResponse's "today" filter defaults to `new Date()`; tests inject a
+// fixed reference instead so results don't depend on when the suite runs.
+// Must land on NZ calendar date 2026-08-06 to match the fixture above.
+const FIXTURE_NOW_NZ_0806 = new Date('2026-08-05T23:00:00Z'); // = 2026-08-06T11:00 NZST
+
 test('converts NIWA UTC timestamps to NZ-local naive strings', () => {
-  const result = adaptNiwaResponse(niwaFixture);
+  const result = adaptNiwaResponse(niwaFixture, FIXTURE_NOW_NZ_0806);
   // 18:00Z + 12h (NZST, no DST in August) rolls into the next calendar day
   assert.strictEqual(result.time[0], '2026-08-06T06:00');
   assert.strictEqual(result.time[1], '2026-08-06T07:00');
 });
 
 test('picks cloudy_sky_uv_index, not clear_sky_uv_index', () => {
-  const result = adaptNiwaResponse(niwaFixture);
+  const result = adaptNiwaResponse(niwaFixture, FIXTURE_NOW_NZ_0806);
   assert.deepStrictEqual(result.uv_index, [0, 0.42]);
 });
 
 test('output shape matches what getCurrentUVI/getDailyPeak/getProtectionWindow expect', () => {
-  const result = adaptNiwaResponse(niwaFixture);
+  const result = adaptNiwaResponse(niwaFixture, FIXTURE_NOW_NZ_0806);
   assert.deepStrictEqual(Object.keys(result).sort(), ['time', 'uv_index']);
   assert.strictEqual(result.time.length, result.uv_index.length);
 });
 
 test('throws clearly when cloudy_sky_uv_index is missing', () => {
   const noProduct = { coord: 'x', products: [niwaFixture.products[1]] }; // clear_sky only
-  assert.throws(() => adaptNiwaResponse(noProduct), /cloudy_sky_uv_index/);
+  assert.throws(() => adaptNiwaResponse(noProduct, FIXTURE_NOW_NZ_0806), /cloudy_sky_uv_index/);
+});
+
+// Regression coverage for the bug found 2026-08-11: NIWA's live /data endpoint
+// returns ~72h (today + next 2 days), not just today like Open-Meteo does.
+// Confirmed live: api.niwa.co.nz/uv/data?lat=-41.28&long=174.78 returned 73
+// hourly points spanning 3 calendar days. getDailyPeak/getProtectionWindow
+// scan the whole array with no date filter of their own, so an unfiltered
+// adapter silently mixes in tomorrow's/the next day's data.
+const multiDayFixture = {
+  coord: 'EPSG:4326,-41.28,174.78',
+  products: [
+    {
+      name: 'cloudy_sky_uv_index',
+      values: [
+        { time: '2026-08-05T22:00:00Z', value: 0.1 },  // 2026-08-06T10:00 NZST (today)
+        { time: '2026-08-05T23:00:00Z', value: 0.2 },  // 2026-08-06T11:00 NZST (today)
+        { time: '2026-08-06T22:00:00Z', value: 9.9 },  // 2026-08-07T10:00 NZST (tomorrow — must be dropped)
+        { time: '2026-08-07T22:00:00Z', value: 9.9 },  // 2026-08-08T10:00 NZST (day after — must be dropped)
+      ],
+    },
+  ],
+};
+
+test('filters out non-today rows from NIWA multi-day responses', () => {
+  const result = adaptNiwaResponse(multiDayFixture, FIXTURE_NOW_NZ_0806);
+  assert.deepStrictEqual(result.time, ['2026-08-06T10:00', '2026-08-06T11:00']);
+  assert.deepStrictEqual(result.uv_index, [0.1, 0.2]);
 });
 
 console.log(`\n${passed} passed, ${failed} failed\n`);

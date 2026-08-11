@@ -327,19 +327,33 @@ async function fetchOpenMeteoUVData(lat, long, signal) {
  * before this function returns — skipping that step is the exact trap
  * noted in docs/superpowers/specs/ (a naive indexOf/string match against
  * UTC times silently returns UV 0 for every hour).
+ *
+ * NIWA's /data endpoint also returns ~72 hours (today + next 2 days), not
+ * just today — unlike Open-Meteo, which is scoped to forecast_days=1. Every
+ * caller of this data (getDailyPeak, getProtectionWindow, getSunscreenTiming)
+ * assumes a single day's worth of hours with no date filtering of its own,
+ * so left unfiltered here, "today's peak UV" or "today's protection window"
+ * could silently be computed from tomorrow's or the day-after's data instead.
+ * Filtering to today's NZ calendar date restores the same one-day contract
+ * Open-Meteo already provides.
  */
 /**
  * Pure shape adapter — no fetch, no state. Separated out so the UTC→NZ-local
- * conversion has a direct unit test rather than only ever being exercised
- * live against the network.
+ * conversion (and the today-only filter) has a direct unit test rather than
+ * only ever being exercised live against the network.
  */
-function adaptNiwaResponse(niwaJson) {
+function adaptNiwaResponse(niwaJson, now = new Date()) {
   const cloudy = niwaJson.products.find(p => p.name === 'cloudy_sky_uv_index');
   if (!cloudy) throw new Error('NIWA response missing cloudy_sky_uv_index');
 
+  const todayNZ = getNZLocalDate(now);
+  const rows = cloudy.values
+    .map(v => ({ time: nzISOString(new Date(v.time)), value: v.value }))
+    .filter(row => row.time.startsWith(todayNZ));
+
   return {
-    time: cloudy.values.map(v => nzISOString(new Date(v.time))),
-    uv_index: cloudy.values.map(v => v.value),
+    time: rows.map(row => row.time),
+    uv_index: rows.map(row => row.value),
   };
 }
 
