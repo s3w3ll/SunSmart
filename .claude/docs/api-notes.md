@@ -4,17 +4,30 @@
 > API base URL: `https://api.niwa.co.nz/uv`
 > Developer docs: https://developer.niwa.co.nz/docs/uv-api/latest/routes/data/get
 
-> **STATUS: PARTIALLY STALE (checked 2026-08-06).** The app fetches UV data from
-> **Open-Meteo**, not NIWA — see `app.js:251`. The NIWA material below is retained
-> because a NIWA data licence is being pursued; it is reference for a possible
-> future source, not a description of current behaviour.
+> **STATUS: SPLIT SOURCE (updated 2026-08-11).** The app now has two UV data
+> paths with different sources:
 >
-> Verified against the live NIWA API on 2026-08-06: `/data` returns 73 hourly
-> points spanning exactly 72 hours, from 06:00 NZ today to 06:00 NZ +3 days,
-> for both `cloudy_sky_uv_index` and `clear_sky_uv_index`. Timestamps are UTC
-> with a `Z` suffix — unlike Open-Meteo, which returns naive NZ-local strings.
-> NIWA's standard API terms permit internal use only and forbid redistribution
-> to third parties, so a product licence is required before shipping on it.
+> | Path | Source | Where |
+> |------|--------|-------|
+> | On-screen chart/timeline (default, every visitor) | **Open-Meteo** | `app.js` `fetchOpenMeteoUVData()` |
+> | On-screen chart/timeline (`?uvSource=niwa`, internal testing only) | NIWA, via the Worker's `/uv` proxy | `app.js` `fetchNiwaUVData()`, `workers/uv-notifier/index.js` `handleUvProxy()` |
+> | Push notifications (cron, real subscribers) | **NIWA** | `workers/uv-notifier/index.js` `fetchCurrentUV()` |
+>
+> Push notifications were switched to NIWA on 2026-08-11 — a deliberate decision
+> to unblock the swap ahead of the product/service licence requested in
+> `docs/superpowers/specs/2026-08-07-niwa-licence-request-draft.md` (NIWA's
+> standard Access Terms permit internal/staff use only; licensing for the
+> now-live push path is being handled separately). See project memory ("NIWA
+> UV data access") for status.
+>
+> Verified against the live NIWA API on 2026-08-06 and 2026-08-11: `/data`
+> returns ~73 hourly points spanning ~72 hours (today + next 2 days), for both
+> `cloudy_sky_uv_index` and `clear_sky_uv_index`. Timestamps are UTC with a `Z`
+> suffix — unlike Open-Meteo, which returns naive NZ-local strings. Both
+> consumers (`adaptNiwaResponse` in `app.js`, `adaptNiwaCurrentUV` in
+> `workers/uv-notifier/index.js`) filter this down to NZ-local "today"/"current
+> hour" before use — see "Filtering to today's data" below; this was a real bug
+> found and fixed 2026-08-11, not just a theoretical concern.
 
 ---
 

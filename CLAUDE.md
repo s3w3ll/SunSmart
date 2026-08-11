@@ -57,7 +57,7 @@ Both hardcoded in `app.js` — safe to expose client-side. RLS enforces data iso
 - **Backend: Supabase** — auth (Google SSO now, Microsoft SSO future) + PostgreSQL for user preferences. Supabase anon key and URL are public/safe to expose. RLS enforces data isolation.
 - **Microsoft SSO requires IT admin involvement** — NZ schools use org Microsoft 365 accounts managed by MOE or regional IT. Azure AD app registration + admin consent required per tenant. See `auth-preferences-spec.md` for full notes.
 - **NZ-specific** — lat/long must be within New Zealand bounds (`latMin: -47, latMax: -34, longMin: 166, longMax: 178`)
-- **Open-Meteo for UV data** — switched from NIWA. Free, no API key, CORS-friendly, returns NZ timezone natively.
+- **UV data source is split (as of 2026-08-11)** — the on-screen chart/timeline defaults to **Open-Meteo** for every visitor (free, no API key, CORS-friendly, returns NZ timezone natively); appending `?uvSource=niwa` switches that same on-screen view to **NIWA** for internal testing only. **Push notifications use NIWA** in production (`workers/uv-notifier/index.js` `fetchCurrentUV()`), ahead of the product/service licence requested in `docs/superpowers/specs/2026-08-07-niwa-licence-request-draft.md` — see `.claude/docs/api-notes.md` for the full source/path breakdown and licensing status.
 - **Policy rules baked into app** — from the three policy documents, no CMS
 - **App is advisory only** — helps schools understand their template policy, not enforce it
 - **Guest mode** — localStorage-only (existing behaviour preserved). Guest can migrate to authenticated account.

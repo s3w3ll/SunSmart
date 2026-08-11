@@ -117,7 +117,7 @@ async function checkAndNotify(env) {
       if (!raw) return;
       const entry = JSON.parse(raw);
 
-      const currentUV = await fetchCurrentUV(entry.location.lat, entry.location.long);
+      const currentUV = await fetchCurrentUV(entry.location.lat, entry.location.long, env);
       if (currentUV === null) return;
 
       if (shouldNotify(entry.lastUV, currentUV)) {
@@ -170,21 +170,65 @@ function shouldNotify(lastUV, currentUV) {
   return lastUV < 3 && currentUV >= 3;
 }
 
-async function fetchCurrentUV(lat, long) {
+/**
+ * "YYYY-MM-DDTHH" for a Date, in NZ-local time. Includes the date (not just
+ * the hour) because NIWA's /data response spans ~72 hours — matching on hour
+ * number alone, as the old Open-Meteo lookup did, would find the wrong day's
+ * value once past hour 0. Also folds NZ's DST-observed "24:00" edge case to
+ * "00" of the same nominal hour slot, the same trap nzISOString/getNZHourString
+ * in app.js guard against — Intl reports the hour after 23:00 as "24" rather
+ * than rolling to the next calendar day's "00" under hour12: false.
+ */
+function nzHourKey(date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Pacific/Auckland',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', hour12: false,
+  }).formatToParts(date);
+  const get = type => parts.find(p => p.type === type).value;
+  const h = get('hour') === '24' ? '00' : get('hour');
+  return `${get('year')}-${get('month')}-${get('day')}T${h}`;
+}
+
+/**
+ * Pure adapter: NIWA's { products: [...] } shape -> the single current-hour
+ * UV value, or null if unavailable. Separated from fetchCurrentUV so the
+ * UTC->NZ-hour matching has a direct unit test rather than only ever being
+ * checked live.
+ *
+ * Uses cloudy_sky_uv_index — the closer analog to a single realistic
+ * forecast (clear_sky_uv_index is NIWA's cloud-free upper bound, which
+ * would over-notify).
+ */
+function adaptNiwaCurrentUV(niwaJson, now = new Date()) {
+  const cloudy = niwaJson.products?.find(p => p.name === 'cloudy_sky_uv_index');
+  if (!cloudy) return null;
+
+  const nowKey = nzHourKey(now);
+  const match = cloudy.values.find(v => nzHourKey(new Date(v.time)) === nowKey);
+  if (!match) return null;
+
+  return Math.round(match.value * 10) / 10;
+}
+
+/**
+ * Sources live push-alert values from NIWA's UV API rather than Open-Meteo.
+ *
+ * NIWA's Access Terms (developer.niwa.co.nz/terms) permit internal/staff use
+ * only, pending the product/service licence requested in
+ * docs/superpowers/specs/2026-08-07-niwa-licence-request-draft.md — this
+ * function now sends NIWA-sourced values to real subscribers ahead of that
+ * approval, a deliberate decision made 2026-08-11 to unblock the swap while
+ * licensing is handled separately. See project memory ("NIWA UV data access")
+ * for status.
+ */
+async function fetchCurrentUV(lat, long, env) {
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${long}&hourly=uv_index&timezone=Pacific%2FAuckland&forecast_days=1`;
-    const res = await fetch(url);
+    const url = `https://api.niwa.co.nz/uv/data?lat=${lat}&long=${long}`;
+    const res = await fetch(url, { headers: { 'x-apikey': env.NIWA_API_KEY } });
     if (!res.ok) return null;
     const json = await res.json();
-    const nzHour = parseInt(
-      new Intl.DateTimeFormat('en-NZ', {
-        timeZone: 'Pacific/Auckland',
-        hour: 'numeric',
-        hour12: false,
-      }).format(new Date()),
-      10
-    );
-    return Math.round(json.hourly.uv_index[nzHour] * 10) / 10;
+    return adaptNiwaCurrentUV(json);
   } catch {
     return null;
   }
@@ -346,3 +390,8 @@ function b64Encode(str) {
 function bytesToB64(bytes) {
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
+
+// Named exports alongside `export default` are inert for the Workers runtime
+// (it only ever calls the default export's fetch/scheduled) but let a plain
+// Node script `import` these pure functions directly for testing.
+export { adaptNiwaCurrentUV, nzHourKey };
