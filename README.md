@@ -18,7 +18,7 @@ When the UV Index reaches 3 — the threshold at which all SunSmart sun protecti
 
 ## Features
 
-- **Live UV forecast** — current and hourly UV index for any NZ location, fetched from Open-Meteo
+- **Live UV forecast** — current and hourly UV index for any NZ location, fetched from NIWA (falls back to Open-Meteo if NIWA is unavailable)
 - **UV chart** — visual timeline of UV index across the day (7am–6pm), with the UVI 3 threshold marked
 - **Policy action engine** — required sun protection actions for three policy types:
   - Early Childhood (ECCs)
@@ -56,7 +56,7 @@ Source: [Cancer Society NZ / SunSmart template policy documents](PolicyDocs/) (J
 |-------|-----------|
 | Frontend | HTML, CSS, vanilla JS — three files (`index.html`, `style.css`, `app.js`) |
 | Hosting | Cloudflare Pages |
-| UV data | [Open-Meteo API](https://open-meteo.com/) — free, no key required |
+| UV data | [NIWA UV API](https://developer.niwa.co.nz/docs/uv-api/latest/routes/data/get) via a Cloudflare Worker proxy, falling back to [Open-Meteo](https://open-meteo.com/) on failure |
 | Geocoding | [Nominatim](https://nominatim.org/) (OpenStreetMap) — free, no key required |
 | Charts | Chart.js (CDN) |
 | Auth + preferences | Supabase (Google SSO, PostgreSQL with RLS) |

@@ -4,21 +4,28 @@
 > API base URL: `https://api.niwa.co.nz/uv`
 > Developer docs: https://developer.niwa.co.nz/docs/uv-api/latest/routes/data/get
 
-> **STATUS: SPLIT SOURCE (updated 2026-08-11).** The app now has two UV data
-> paths with different sources:
+> **STATUS: NIWA IS THE DEFAULT EVERYWHERE (updated 2026-08-18).** Both UV
+> data paths now use NIWA, with Open-Meteo demoted to an automatic fallback:
 >
 > | Path | Source | Where |
 > |------|--------|-------|
-> | On-screen chart/timeline (default, every visitor) | **Open-Meteo** | `app.js` `fetchOpenMeteoUVData()` |
-> | On-screen chart/timeline (`?uvSource=niwa`, internal testing only) | NIWA, via the Worker's `/uv` proxy | `app.js` `fetchNiwaUVData()`, `workers/uv-notifier/index.js` `handleUvProxy()` |
+> | On-screen chart/timeline (default) | **NIWA**, via the Worker's `/uv` proxy | `app.js` `fetchUVData()` → `fetchNiwaUVData()`, `workers/uv-notifier/index.js` `handleUvProxy()` |
+> | On-screen chart/timeline (automatic fallback if NIWA fetch fails) | Open-Meteo | `app.js` `fetchOpenMeteoUVData()` |
 > | Push notifications (cron, real subscribers) | **NIWA** | `workers/uv-notifier/index.js` `fetchCurrentUV()` |
 >
-> Push notifications were switched to NIWA on 2026-08-11 — a deliberate decision
-> to unblock the swap ahead of the product/service licence requested in
+> The on-screen default switched from Open-Meteo to NIWA on 2026-08-18 — the
+> two sources' forecast models disagreed widely enough (e.g. 3.2 vs NIWA's
+> 1.7 for the same Christchurch hour) to be misleading. The `?uvSource=niwa`
+> query-param toggle was removed since NIWA is no longer opt-in.
+>
+> **This is ahead of the product/service licence** requested in
 > `docs/superpowers/specs/2026-08-07-niwa-licence-request-draft.md` (NIWA's
-> standard Access Terms permit internal/staff use only; licensing for the
-> now-live push path is being handled separately). See project memory ("NIWA
-> UV data access") for status.
+> standard Access Terms permit internal/staff use only). Defaulting the
+> on-screen path to NIWA is only valid while this deployment has no visitors
+> besides the maintainer — revisit before the app is opened up to other
+> users (e.g. schools). Push notifications were switched to NIWA earlier, on
+> 2026-08-11, under the same ahead-of-licence reasoning. See project memory
+> ("NIWA UV data access") for status.
 >
 > Verified against the live NIWA API on 2026-08-06 and 2026-08-11: `/data`
 > returns ~73 hourly points spanning ~72 hours (today + next 2 days), for both

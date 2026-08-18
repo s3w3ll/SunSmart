@@ -278,20 +278,30 @@ let currentFetchController = null;
  * time strings in NZ-local "YYYY-MM-DDTHH:00" format (see nzISOString),
  * matching what getCurrentUVI/getDailyPeak/getProtectionWindow all expect.
  *
- * Source defaults to Open-Meteo for every visitor. Appending ?uvSource=niwa
- * switches to NIWA's UV API for INTERNAL TESTING ONLY, per the "NIWA
- * licence" thread — NIWA's Access Terms don't yet permit serving their data
- * to end users, so this must stay opt-in, not the default, until a product
- * licence is confirmed.
+ * NIWA is the default source (switched 2026-08-18) — Open-Meteo's model
+ * disagreed with NIWA/the NIWA website by a wide enough margin (e.g. 3.2 vs
+ * 1.7 for Christchurch) to be misleading. This is only safe under NIWA's
+ * Access Terms (developer.niwa.co.nz/terms — internal/staff use only, no
+ * confirmed product licence yet) because this deployment is currently
+ * personal/internal use with no other visitors; revisit before the app gets
+ * any other users. See project memory ("NIWA UV data access").
+ *
+ * Falls back to Open-Meteo automatically if the NIWA fetch fails (worker
+ * down, NIWA outage, network error) so a transient failure still shows a UV
+ * value instead of an error state.
  */
 async function fetchUVData(lat, long) {
   if (currentFetchController) currentFetchController.abort();
   currentFetchController = new AbortController();
 
-  const useNiwa = new URLSearchParams(window.location.search).get('uvSource') === 'niwa';
-  const hourly = useNiwa
-    ? await fetchNiwaUVData(lat, long, currentFetchController.signal)
-    : await fetchOpenMeteoUVData(lat, long, currentFetchController.signal);
+  let hourly;
+  try {
+    hourly = await fetchNiwaUVData(lat, long, currentFetchController.signal);
+  } catch (err) {
+    if (err.name === 'AbortError') throw err;
+    console.warn('NIWA UV fetch failed, falling back to Open-Meteo:', err);
+    hourly = await fetchOpenMeteoUVData(lat, long, currentFetchController.signal);
+  }
 
   currentFetchController = null;
   return hourly;
@@ -318,9 +328,10 @@ async function fetchOpenMeteoUVData(lat, long, signal) {
  * into Open-Meteo's { time, uv_index } shape.
  *
  * Uses cloudy_sky_uv_index — the closer analog to Open-Meteo's single
- * realistic-forecast series, so thresholds/comparisons stay meaningful
- * during testing. clear_sky_uv_index (NIWA's worst-case upper bound) is
- * available in the same response if that default is revisited later.
+ * realistic-forecast series, so thresholds/comparisons (and the Open-Meteo
+ * fallback in fetchUVData) stay meaningful. clear_sky_uv_index (NIWA's
+ * worst-case upper bound) is available in the same response if that default
+ * is revisited later.
  *
  * NIWA returns UTC ("...Z") timestamps; every downstream helper expects
  * NZ-local naive strings, so each timestamp is converted via nzISOString
